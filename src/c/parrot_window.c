@@ -12,6 +12,7 @@ static Window *s_window;
 static BitmapLayer *s_bg_layer;
 static GBitmap *s_bg_bitmap;
 static BitmapLayer *s_parrot_layer;
+static GPoint s_parrot_origin;   // resting top-left of the parrot frame; set_offset nudges from here
 
 static TextLayer *s_state_label;
 
@@ -38,6 +39,7 @@ typedef enum {
   POSE_GROUP_IDLE,     // IDLE, BLINK, TILT -- UI_STATE_IDLE (cycling + touch reaction)
   POSE_GROUP_NEUTRAL,  // IDLE only -- listening/thinking/error (held, no fidgeting)
   POSE_GROUP_SPEAK,    // SPEAK_1, SPEAK_2 -- UI_STATE_SPEAKING
+  POSE_GROUP_FLAP,     // IDLE, FLAP -- transient, only during an idle wing-flap
 } PoseGroup;
 
 #define POSE_GROUP_MAX_BITMAPS 3
@@ -70,6 +72,10 @@ static void prv_load_pose_group(PoseGroup group) {
       s_group_bitmaps[0] = gbitmap_create_with_resource(RESOURCE_ID_IMG_PARROT_SPEAK_1);
       s_group_bitmaps[1] = gbitmap_create_with_resource(RESOURCE_ID_IMG_PARROT_SPEAK_2);
       break;
+    case POSE_GROUP_FLAP:
+      s_group_bitmaps[0] = gbitmap_create_with_resource(RESOURCE_ID_IMG_PARROT_IDLE);
+      s_group_bitmaps[1] = gbitmap_create_with_resource(RESOURCE_ID_IMG_PARROT_FLAP);
+      break;
     case POSE_GROUP_NONE:
       break;
   }
@@ -99,6 +105,12 @@ static GBitmap *prv_bitmap_for_pose(ParrotPose pose) {
       switch (pose) {
         case PARROT_POSE_SPEAK_1: return s_group_bitmaps[0];
         case PARROT_POSE_SPEAK_2: return s_group_bitmaps[1];
+        default: return NULL;
+      }
+    case POSE_GROUP_FLAP:
+      switch (pose) {
+        case PARROT_POSE_IDLE: return s_group_bitmaps[0];
+        case PARROT_POSE_FLAP: return s_group_bitmaps[1];
         default: return NULL;
       }
     case POSE_GROUP_NONE:
@@ -147,6 +159,26 @@ void parrot_window_set_pose(ParrotPose pose) {
     return;
   }
   bitmap_layer_set_bitmap(s_parrot_layer, bitmap);
+}
+
+void parrot_window_set_offset(int16_t dx, int16_t dy) {
+  if (!s_parrot_layer) {
+    return;
+  }
+  GRect frame = layer_get_frame(bitmap_layer_get_layer(s_parrot_layer));
+  frame.origin.x = s_parrot_origin.x + dx;
+  frame.origin.y = s_parrot_origin.y + dy;
+  layer_set_frame(bitmap_layer_get_layer(s_parrot_layer), frame);
+}
+
+void parrot_window_load_flap_group(void) {
+  prv_load_pose_group(POSE_GROUP_FLAP);
+  parrot_window_set_pose(PARROT_POSE_IDLE);
+}
+
+void parrot_window_load_idle_group(void) {
+  prv_load_pose_group(POSE_GROUP_IDLE);
+  parrot_window_set_pose(PARROT_POSE_IDLE);
 }
 
 AppUiState parrot_window_get_state(void) {
@@ -250,6 +282,7 @@ static void prv_window_load(Window *window) {
   frame.origin.x = (bounds.size.w - frame.size.w) / 2;
   frame.origin.y = STATE_LABEL_HEIGHT +
       (bounds.size.h - STATE_LABEL_HEIGHT - frame.size.h) / 2;
+  s_parrot_origin = frame.origin;
   s_parrot_layer = bitmap_layer_create(frame);
   bitmap_layer_set_compositing_mode(s_parrot_layer, GCompOpSet);
   if (idle_bitmap) {

@@ -139,6 +139,18 @@ def wing(c, lean=0):
     c.alpha_composite(glossy(SIZE, lambda d, **kw: d.ellipse(ebox(wx - 2, 110, 12, 16), **kw),
                              YELLOW, YELLOW_LT))
 
+def wing_spread(c):
+    """Both wings raised and open -- the flap pose. Drawn behind the body (like
+    wing()) so the body overlaps their inner edge; the outer halves rise above
+    and beside the body to read clearly as spread wings."""
+    for wx in (44, 92):
+        c.alpha_composite(glossy(SIZE, lambda d, wx=wx, **kw: d.ellipse(ebox(wx, 78, 15, 33), **kw),
+                                 BLUE_DARK, BLUE_LT))
+        c.alpha_composite(glossy(SIZE, lambda d, wx=wx, **kw: d.ellipse(ebox(wx, 80, 9, 23), **kw),
+                                 BLUE, BLUE_LT))
+        c.alpha_composite(glossy(SIZE, lambda d, wx=wx, **kw: d.ellipse(ebox(wx, 96, 7, 11), **kw),
+                                 YELLOW, YELLOW_LT))
+
 def body(c):
     c.alpha_composite(glossy(SIZE, lambda d, **kw: d.ellipse(ebox(68, 98, 34, 44), **kw),
                              RED, RED_LIGHT, outline=RED_DARK, outline_width=SS))
@@ -230,6 +242,20 @@ def make_speak(open_amount):
     beak(c, hx, hy, open_amount=open_amount)
     return finish(c)
 
+def make_flap():
+    """Wings-open flap pose: same body/head as idle but spread wings instead of
+    the single folded wing."""
+    c = layer()
+    branch(c)
+    tail(c)
+    wing_spread(c)
+    body(c)
+    hx, hy = head(c)
+    crest(c, hx, hy)
+    eye(c, hx, hy)
+    beak(c, hx, hy, open_amount=3)
+    return finish(c)
+
 def make_menu_icon():
     isize = (ICON * SS, ICON * SS)
     c = layer(isize)
@@ -260,4 +286,5 @@ if __name__ == '__main__':
     save(make_tilt(), 'parrot_tilt.png', PARROT_SCALE)
     save(make_speak(2), 'parrot_speak_1.png', PARROT_SCALE)
     save(make_speak(9), 'parrot_speak_2.png', PARROT_SCALE)
+    save(make_flap(), 'parrot_flap.png', PARROT_SCALE)
     save(make_menu_icon(), 'menu_icon.png')

@@ -9,21 +9,37 @@
 #define HAPPY_FRAME_MS 130
 #define HAPPY_FRAME_COUNT 6  // ~780ms wiggle: alternates TILT/BLINK three times
 
-typedef enum {
-  IDLE_PHASE_NEUTRAL,  // showing PARROT_POSE_IDLE, waiting to do something cute
-  IDLE_PHASE_POSED,    // briefly showing blink/tilt, about to revert
-} IdlePhase;
+// One keyframe of an idle "fidget": nudge the parrot to (dx, dy) px from rest,
+// optionally swap to `pose` (KEEP_POSE = leave unchanged), hold `ms`, advance.
+#define KEEP_POSE (-1)
+typedef struct { int8_t dx, dy, pose; uint16_t ms; } Fidget;
 
-static AppTimer *s_idle_timer;
+// Blink/tilt: pure pose swaps (no movement). Step/hop: pure layer movement over
+// the resting pose. Bob: a "look around" -- tilt the head while bobbing. Flap:
+// alternate IDLE<->FLAP (the FLAP group must be loaded first; see idle_timer_cb).
+// Every sequence ends back at rest (0,0, IDLE) so the player cleans up uniformly.
+static const Fidget FR_BLINK[] = {{0, 0, PARROT_POSE_BLINK, BLINK_HOLD_MS}, {0, 0, PARROT_POSE_IDLE, 1}};
+static const Fidget FR_TILT[]  = {{0, 0, PARROT_POSE_TILT, TILT_HOLD_MS}, {0, 0, PARROT_POSE_IDLE, 1}};
+static const Fidget FR_STEP_R[] = {{6, 0, KEEP_POSE, 150}, {0, 0, KEEP_POSE, 110}, {6, 0, KEEP_POSE, 150}, {0, 0, KEEP_POSE, 1}};
+static const Fidget FR_STEP_L[] = {{-6, 0, KEEP_POSE, 150}, {0, 0, KEEP_POSE, 110}, {-6, 0, KEEP_POSE, 150}, {0, 0, KEEP_POSE, 1}};
+static const Fidget FR_HOP[]   = {{0, -8, KEEP_POSE, 110}, {0, 0, KEEP_POSE, 70}, {0, -5, KEEP_POSE, 90}, {0, 0, KEEP_POSE, 1}};
+static const Fidget FR_BOB[]   = {{0, 3, PARROT_POSE_TILT, 160}, {0, 0, PARROT_POSE_TILT, 140}, {0, 3, PARROT_POSE_TILT, 160}, {0, 0, PARROT_POSE_IDLE, 1}};
+static const Fidget FR_FLAP[]  = {{0, 0, PARROT_POSE_FLAP, 140}, {0, -3, PARROT_POSE_IDLE, 120}, {0, 0, PARROT_POSE_FLAP, 140},
+                                  {0, -3, PARROT_POSE_IDLE, 120}, {0, 0, PARROT_POSE_FLAP, 140}, {0, 0, PARROT_POSE_IDLE, 1}};
+
+static AppTimer *s_idle_timer;     // wait between fidgets
+static AppTimer *s_fidget_timer;   // steps through one fidget's keyframes
 static AppTimer *s_talk_timer;
 static AppTimer *s_happy_timer;
-static IdlePhase s_idle_phase = IDLE_PHASE_NEUTRAL;
+static const Fidget *s_fidget;
+static int s_fidget_len, s_fidget_i;
+static bool s_in_flap;
 static bool s_talk_alt = false;
 static bool s_happy_alt = false;
 static int s_happy_frames_left = 0;
 static AppUiState s_state = UI_STATE_IDLE;
 
-// Higher IDLE_ANIM_FREQ (0-100) -> shorter waits between idle poses.
+// Higher IDLE_ANIM_FREQ (0-100) -> shorter waits between idle fidgets.
 static uint32_t random_idle_interval(void) {
   int freq = config_idle_anim_freq();
   if (freq < 0) { freq = 0; }
@@ -33,24 +49,56 @@ static uint32_t random_idle_interval(void) {
   return base + (rand() % 1500);
 }
 
-static void idle_timer_cb(void *data);
+static void schedule_next_fidget(void);
 
-static void schedule_idle_timer(uint32_t delay_ms) {
-  s_idle_timer = app_timer_register(delay_ms, idle_timer_cb, NULL);
+static void fidget_step(void *data) {
+  s_fidget_timer = NULL;
+  if (s_fidget_i >= s_fidget_len) {              // sequence finished
+    parrot_window_set_offset(0, 0);
+    if (s_in_flap) {                             // restore the idle pose group
+      parrot_window_load_idle_group();
+      s_in_flap = false;
+    }
+    schedule_next_fidget();
+    return;
+  }
+  const Fidget *f = &s_fidget[s_fidget_i++];
+  parrot_window_set_offset(f->dx, f->dy);
+  if (f->pose != KEEP_POSE) {
+    parrot_window_set_pose((ParrotPose)f->pose);
+  }
+  s_fidget_timer = app_timer_register(f->ms, fidget_step, NULL);
+}
+
+static void play_fidget(const Fidget *frames, int len) {
+  s_fidget = frames;
+  s_fidget_len = len;
+  s_fidget_i = 0;
+  fidget_step(NULL);
 }
 
 static void idle_timer_cb(void *data) {
   s_idle_timer = NULL;
-  if (s_idle_phase == IDLE_PHASE_NEUTRAL) {
-    bool do_tilt = (rand() % 10) < 3;  // ~30% tilt, ~70% blink
-    parrot_window_set_pose(do_tilt ? PARROT_POSE_TILT : PARROT_POSE_BLINK);
-    s_idle_phase = IDLE_PHASE_POSED;
-    schedule_idle_timer(do_tilt ? TILT_HOLD_MS : BLINK_HOLD_MS);
+  int r = rand() % 100;
+  if (r < 35) {
+    play_fidget(FR_BLINK, ARRAY_LENGTH(FR_BLINK));
+  } else if (r < 55) {
+    play_fidget(FR_TILT, ARRAY_LENGTH(FR_TILT));
+  } else if (r < 70) {
+    play_fidget((rand() & 1) ? FR_STEP_R : FR_STEP_L, ARRAY_LENGTH(FR_STEP_R));
+  } else if (r < 82) {
+    play_fidget(FR_HOP, ARRAY_LENGTH(FR_HOP));
+  } else if (r < 92) {
+    play_fidget(FR_BOB, ARRAY_LENGTH(FR_BOB));
   } else {
-    parrot_window_set_pose(PARROT_POSE_IDLE);
-    s_idle_phase = IDLE_PHASE_NEUTRAL;
-    schedule_idle_timer(random_idle_interval());
+    parrot_window_load_flap_group();   // swap in the FLAP sprite (2 bitmaps, heap-safe)
+    s_in_flap = true;
+    play_fidget(FR_FLAP, ARRAY_LENGTH(FR_FLAP));
   }
+}
+
+static void schedule_next_fidget(void) {
+  s_idle_timer = app_timer_register(random_idle_interval(), idle_timer_cb, NULL);
 }
 
 static void stop_idle_timer(void) {
@@ -58,13 +106,21 @@ static void stop_idle_timer(void) {
     app_timer_cancel(s_idle_timer);
     s_idle_timer = NULL;
   }
-  s_idle_phase = IDLE_PHASE_NEUTRAL;
+  if (s_fidget_timer) {
+    app_timer_cancel(s_fidget_timer);
+    s_fidget_timer = NULL;
+  }
+  parrot_window_set_offset(0, 0);
+  // The pose group is owned by parrot_window_set_state (which loads the right
+  // group before this runs on a state change). Callers that stop while staying
+  // idle (trigger_happy) reload the idle group themselves.
+  s_in_flap = false;
 }
 
 static void start_idle_timer(void) {
   stop_idle_timer();
   if (config_idle_anim_enabled()) {
-    schedule_idle_timer(random_idle_interval());
+    schedule_next_fidget();
   }
 }
 
@@ -132,6 +188,7 @@ void parrot_anim_trigger_happy(void) {
     return;  // only react while idle; ignore re-taps mid-reaction
   }
   stop_idle_timer();
+  parrot_window_load_idle_group();  // a flap may have been mid-play; happy needs BLINK/TILT
   play_chirp();
   s_happy_alt = false;
   s_happy_frames_left = HAPPY_FRAME_COUNT;
@@ -165,7 +222,6 @@ void parrot_anim_set_state(AppUiState state) {
 }
 
 void parrot_anim_init(void) {
-  s_idle_phase = IDLE_PHASE_NEUTRAL;
   s_talk_alt = false;
   // Deliberately not a valid AppUiState: forces the first parrot_anim_set_state()
   // call (made right after this, with UI_STATE_IDLE) to actually start the timer

@@ -45,7 +45,8 @@
         { "type": "png", "name": "IMG_PARROT_BLINK",  "file": "images/parrot_blink.png" },
         { "type": "png", "name": "IMG_PARROT_TILT",   "file": "images/parrot_tilt.png" },
         { "type": "png", "name": "IMG_PARROT_SPEAK_1","file": "images/parrot_speak_1.png" },
-        { "type": "png", "name": "IMG_PARROT_SPEAK_2","file": "images/parrot_speak_2.png" }
+        { "type": "png", "name": "IMG_PARROT_SPEAK_2","file": "images/parrot_speak_2.png" },
+        { "type": "png", "name": "IMG_PARROT_FLAP",   "file": "images/parrot_flap.png" }
       ]
     }
   }
