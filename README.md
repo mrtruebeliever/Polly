@@ -69,12 +69,12 @@ name (e.g. `nl-NL-Wavenet-B`, `nl-NL-Chirp3-HD-Achernar`) into the
 
 ### 3. Ask-AI (optional, for the UP button)
 
-To use the UP button, add your own **Anthropic (Claude) API key** in the
-**"Ask AI"** settings section. Get one from the
-[Anthropic Console](https://console.anthropic.com) (API keys start with
-`sk-ant-`). Questions are answered by `claude-haiku-4-5` in 1–2 short sentences,
-then spoken via the same Google TTS voice. Like the Google key, the Anthropic
-key is stored only on your phone (`localStorage`) and is never sent to the watch.
+To use the UP button, add a **free Google Gemini API key** in the **"Ask AI"**
+settings section. Create one for free in
+[Google AI Studio](https://aistudio.google.com/apikey) (keys start with `AIza`).
+Questions are answered by `gemini-2.0-flash` in 1–2 short sentences, then spoken
+via the same Google TTS voice. Like the other keys, the Gemini key is stored only
+on your phone (`localStorage`) and is never sent to the watch.
 
 ### 4. Quick phrases (optional, for the DOWN button)
 

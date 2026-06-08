@@ -7,11 +7,13 @@ var SAMPLE_RATE_HZ = 8000;
 var CHUNK_SIZE = 256;            // must match AUDIO_CHUNK_SIZE in audio_playback.h
 var AUDIO_FORMAT_8KHZ_8BIT = 0;  // SpeakerPcmFormat_8kHz_8bit, see audio_playback.c
 
-// Ask-AI: the UP button dictates a question, we ask Claude for a short answer,
-// then feed that answer through the same Google-TTS speak() path.
-var ANTHROPIC_URL = 'https://api.anthropic.com/v1/messages';
-var AI_MODEL = 'claude-haiku-4-5';   // fast + cheap, ideal for 1-2 sentence spoken replies
-var AI_MAX_TOKENS = 150;
+// Ask-AI: the UP button dictates a question, we ask Google Gemini (free tier)
+// for a short answer, then feed that answer through the same Google-TTS speak()
+// path. gemini-2.0-flash is fast, on the free tier, and has no thinking budget
+// to manage (so a small maxOutputTokens reliably yields the actual answer).
+var GEMINI_MODEL = 'gemini-2.0-flash';
+var GEMINI_URL = 'https://generativelanguage.googleapis.com/v1beta/models/' + GEMINI_MODEL + ':generateContent';
+var AI_MAX_TOKENS = 200;
 var AI_SYSTEM = 'You are Polly, a parrot voice assistant on a smartwatch. Answer in at most ' +
   '1-2 short spoken sentences. Plain text only -- no markdown, lists, code, or emoji. ' +
   'Be direct and friendly.';
@@ -216,28 +218,23 @@ function sendAnswer(text) {
 }
 
 function askAI(question) {
-  var apiKey = localStorage.getItem('ANTHROPIC_API_KEY') || '';
+  var apiKey = localStorage.getItem('GEMINI_API_KEY') || '';
   if (!apiKey) {
-    console.log('polly: no Anthropic API key configured');
+    console.log('polly: no Gemini API key configured');
     sendTtsError(TTS_ERR_NO_KEY);
     return;
   }
 
   var body = JSON.stringify({
-    model: AI_MODEL,
-    max_tokens: AI_MAX_TOKENS,
-    system: AI_SYSTEM,
-    messages: [{ role: 'user', content: question }]
+    system_instruction: { parts: [{ text: AI_SYSTEM }] },
+    contents: [{ role: 'user', parts: [{ text: question }] }],
+    generationConfig: { maxOutputTokens: AI_MAX_TOKENS, temperature: 0.7 }
   });
 
   var xhr = new XMLHttpRequest();
-  xhr.open('POST', ANTHROPIC_URL);
+  // Key goes in the query string, same as the Google TTS call.
+  xhr.open('POST', GEMINI_URL + '?key=' + encodeURIComponent(apiKey));
   xhr.setRequestHeader('Content-Type', 'application/json');
-  xhr.setRequestHeader('x-api-key', apiKey);
-  xhr.setRequestHeader('anthropic-version', '2023-06-01');
-  // PebbleKit JS runs in a browser-like context; Anthropic blocks browser-origin
-  // calls unless this header opts in.
-  xhr.setRequestHeader('anthropic-dangerous-direct-browser-access', 'true');
   xhr.timeout = 25000;
   xhr.onload = function () {
     if (xhr.status < 200 || xhr.status >= 300) {
@@ -247,9 +244,14 @@ function askAI(question) {
     }
     var answer = null;
     try {
-      var content = JSON.parse(xhr.responseText).content || [];
-      for (var i = 0; i < content.length; i++) {
-        if (content[i].type === 'text') { answer = content[i].text; break; }
+      var data = JSON.parse(xhr.responseText);
+      var cand = data.candidates && data.candidates[0];
+      var parts = cand && cand.content && cand.content.parts;
+      if (parts) {
+        answer = '';
+        for (var i = 0; i < parts.length; i++) {
+          if (parts[i].text) { answer += parts[i].text; }
+        }
       }
     } catch (e) {
       console.log('polly: AI response parse error: ' + e);
@@ -294,11 +296,11 @@ Pebble.addEventListener('webviewclosed', function (e) {
   localStorage.setItem('TTS_API_KEY', (s[keys.TTS_API_KEY] || '').toString().trim());
   localStorage.setItem('VOICE_LANG', (s[keys.VOICE_LANG] || '').toString().trim());
   localStorage.setItem('VOICE_NAME', (s[keys.VOICE_NAME] || '').toString().trim());
-  localStorage.setItem('ANTHROPIC_API_KEY', (s[keys.ANTHROPIC_API_KEY] || '').toString().trim());
+  localStorage.setItem('GEMINI_API_KEY', (s[keys.GEMINI_API_KEY] || '').toString().trim());
   delete s[keys.TTS_API_KEY];
   delete s[keys.VOICE_LANG];
   delete s[keys.VOICE_NAME];
-  delete s[keys.ANTHROPIC_API_KEY];
+  delete s[keys.GEMINI_API_KEY];
 
   Pebble.sendAppMessage(s, function () {}, function () {
     console.log('polly: settings send failed');

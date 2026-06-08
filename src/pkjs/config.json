@@ -76,14 +76,14 @@
       { "type": "heading", "defaultValue": "Vraag het de AI" },
       {
         "type": "text",
-        "defaultValue": "Druk op het horloge op de bovenknop, stel een vraag, en Polly antwoordt kort. Vul hieronder je eigen Anthropic (Claude) API-sleutel in. De sleutel blijft alleen op je telefoon."
+        "defaultValue": "Druk op het horloge op de bovenknop, stel een vraag, en Polly antwoordt kort. Vul hieronder je gratis Google Gemini API-sleutel in (gratis aan te maken via Google AI Studio: aistudio.google.com/apikey). De sleutel blijft alleen op je telefoon."
       },
       {
         "type": "input",
-        "messageKey": "ANTHROPIC_API_KEY",
-        "label": "Anthropic API-sleutel",
+        "messageKey": "GEMINI_API_KEY",
+        "label": "Gemini API-sleutel",
         "defaultValue": "",
-        "attributes": { "type": "password", "placeholder": "sk-ant-..." }
+        "attributes": { "type": "password", "placeholder": "AIza..." }
       }
     ]
   },
