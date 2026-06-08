@@ -1,0 +1,74 @@
+[
+  { "type": "heading", "defaultValue": "Polly" },
+  {
+    "type": "section",
+    "items": [
+      { "type": "heading", "defaultValue": "Spraak (Google Cloud Text-to-Speech)" },
+      {
+        "type": "text",
+        "defaultValue": "Polly heeft je eigen Google Cloud TTS API-sleutel nodig om hardop te kunnen praten. De sleutel wordt alleen op je telefoon bewaard en nooit naar het horloge gestuurd."
+      },
+      {
+        "type": "input",
+        "messageKey": "TTS_API_KEY",
+        "label": "API-sleutel",
+        "defaultValue": "",
+        "attributes": { "type": "password", "placeholder": "AIza..." }
+      },
+      {
+        "type": "select",
+        "messageKey": "VOICE_LANG",
+        "label": "Taal van de stem",
+        "defaultValue": "nl-NL",
+        "options": [
+          { "label": "Nederlands", "value": "nl-NL" },
+          { "label": "English (US)", "value": "en-US" },
+          { "label": "English (UK)", "value": "en-GB" },
+          { "label": "Deutsch", "value": "de-DE" },
+          { "label": "Français", "value": "fr-FR" },
+          { "label": "Español", "value": "es-ES" }
+        ]
+      },
+      {
+        "type": "input",
+        "messageKey": "VOICE_NAME",
+        "label": "Specifieke stem (optioneel)",
+        "description": "Vul je hier een stemnaam in, dan bepaalt die ook de taal -- de keuze hierboven wordt dan genegeerd. Zoek namen op via de link in de README (bv. nl-NL-Wavenet-B of nl-BE-Wavenet-C).",
+        "defaultValue": "",
+        "attributes": { "placeholder": "bv. nl-NL-Wavenet-B" }
+      }
+    ]
+  },
+  {
+    "type": "section",
+    "items": [
+      { "type": "heading", "defaultValue": "Papegaai" },
+      {
+        "type": "toggle",
+        "messageKey": "IDLE_ANIM_ENABLED",
+        "label": "Kleine animaties (knipperen, kop schuin)",
+        "defaultValue": true
+      },
+      {
+        "type": "slider",
+        "messageKey": "IDLE_ANIM_FREQ",
+        "label": "Hoe vaak",
+        "description": "Hoe hoger, hoe vaker Polly even beweegt.",
+        "min": 0,
+        "max": 100,
+        "step": 10,
+        "defaultValue": 50
+      },
+      {
+        "type": "slider",
+        "messageKey": "SPEECH_VOLUME",
+        "label": "Spraakvolume",
+        "min": 0,
+        "max": 100,
+        "step": 10,
+        "defaultValue": 70
+      }
+    ]
+  },
+  { "type": "submit", "defaultValue": "Opslaan" }
+]

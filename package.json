@@ -1,0 +1,51 @@
+{
+  "name": "Polly",
+  "author": "MakeAwesomeHappen",
+  "version": "1.0.0",
+  "keywords": ["pebble-app"],
+  "private": true,
+  "dependencies": {
+    "pebble-clay": "^1.0.4"
+  },
+  "pebble": {
+    "displayName": "Polly",
+    "uuid": "92d08e34-2e58-4ef8-aea6-b6c678095ff9",
+    "sdkVersion": "3",
+    "enableMultiJS": true,
+    "capabilities": [
+      "configurable"
+    ],
+    "targetPlatforms": [
+      "emery"
+    ],
+    "watchapp": {
+      "watchface": false
+    },
+    "messageKeys": [
+      "TRANSCRIPT",
+      "AUDIO_FORMAT",
+      "AUDIO_TOTAL_LEN",
+      "AUDIO_CHUNK_INDEX",
+      "AUDIO_CHUNK",
+      "AUDIO_DONE",
+      "TTS_ERROR",
+      "TTS_API_KEY",
+      "VOICE_LANG",
+      "VOICE_NAME",
+      "IDLE_ANIM_ENABLED",
+      "IDLE_ANIM_FREQ",
+      "SPEECH_VOLUME"
+    ],
+    "resources": {
+      "media": [
+        { "type": "png", "name": "IMG_MENU_ICON",   "file": "images/menu_icon.png", "menuIcon": true },
+        { "type": "png", "name": "IMG_JUNGLE_BG",     "file": "images/jungle_bg.png" },
+        { "type": "png", "name": "IMG_PARROT_IDLE",   "file": "images/parrot_idle.png" },
+        { "type": "png", "name": "IMG_PARROT_BLINK",  "file": "images/parrot_blink.png" },
+        { "type": "png", "name": "IMG_PARROT_TILT",   "file": "images/parrot_tilt.png" },
+        { "type": "png", "name": "IMG_PARROT_SPEAK_1","file": "images/parrot_speak_1.png" },
+        { "type": "png", "name": "IMG_PARROT_SPEAK_2","file": "images/parrot_speak_2.png" }
+      ]
+    }
+  }
+}
