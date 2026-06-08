@@ -72,8 +72,8 @@ name (e.g. `nl-NL-Wavenet-B`, `nl-NL-Chirp3-HD-Achernar`) into the
 To use the UP button, add a **free Google Gemini API key** in the **"Ask AI"**
 settings section. Create one for free in
 [Google AI Studio](https://aistudio.google.com/apikey) (keys start with `AIza`).
-Questions are answered by `gemini-2.0-flash` in 1–2 short sentences, then spoken
-via the same Google TTS voice. Like the other keys, the Gemini key is stored only
+Questions are answered by `gemini-2.5-flash-lite` in 1–2 short sentences, then
+spoken via the same Google TTS voice. Like the other keys, the Gemini key is stored only
 on your phone (`localStorage`) and is never sent to the watch.
 
 ### 4. Quick phrases (optional, for the DOWN button)

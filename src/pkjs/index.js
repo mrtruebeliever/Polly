@@ -9,9 +9,11 @@ var AUDIO_FORMAT_8KHZ_8BIT = 0;  // SpeakerPcmFormat_8kHz_8bit, see audio_playba
 
 // Ask-AI: the UP button dictates a question, we ask Google Gemini (free tier)
 // for a short answer, then feed that answer through the same Google-TTS speak()
-// path. gemini-2.0-flash is fast, on the free tier, and has no thinking budget
-// to manage (so a small maxOutputTokens reliably yields the actual answer).
-var GEMINI_MODEL = 'gemini-2.0-flash';
+// path. gemini-2.5-flash-lite is on the current free tier (the 2.0 models have
+// a free-tier limit of 0 now), is fast, and -- unlike 2.5-flash -- doesn't spend
+// the token budget on "thinking" by default. We still pin thinkingBudget to 0
+// below so the whole maxOutputTokens budget goes to the spoken answer.
+var GEMINI_MODEL = 'gemini-2.5-flash-lite';
 var GEMINI_URL = 'https://generativelanguage.googleapis.com/v1beta/models/' + GEMINI_MODEL + ':generateContent';
 var AI_MAX_TOKENS = 200;
 var AI_SYSTEM = 'You are Polly, a parrot voice assistant on a smartwatch. Answer in at most ' +
@@ -228,7 +230,11 @@ function askAI(question) {
   var body = JSON.stringify({
     system_instruction: { parts: [{ text: AI_SYSTEM }] },
     contents: [{ role: 'user', parts: [{ text: question }] }],
-    generationConfig: { maxOutputTokens: AI_MAX_TOKENS, temperature: 0.7 }
+    generationConfig: {
+      maxOutputTokens: AI_MAX_TOKENS,
+      temperature: 0.7,
+      thinkingConfig: { thinkingBudget: 0 }   // no thinking -> budget goes to the answer
+    }
   });
 
   var xhr = new XMLHttpRequest();
