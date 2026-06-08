@@ -21,6 +21,7 @@ Two sources, in priority order:
 """
 import glob
 import os
+import random
 from PIL import Image, ImageDraw, ImageFilter
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -58,7 +59,7 @@ def add_vignette(img):
         bot = max(0.0, (t - 0.66) / 0.34)     # fade in over the bottom ~34%
         px[0, y] = int(150 * max(top, bot))
     mask = grad.resize(img.size)
-    dark = Image.new('RGB', img.size, (8, 16, 12))
+    dark = Image.new('RGB', img.size, (6, 14, 0))   # blue 0: keep the whole image blue-free
     return Image.composite(dark, img, mask)
 
 # --- Source 1: AI render ------------------------------------------------------
@@ -79,17 +80,21 @@ def cover_crop(img, w, h):
 
 # --- Source 2: procedural placeholder ----------------------------------------
 
-SKY_TOP, SKY_BOT = (28, 64, 44), (74, 120, 70)     # filtered canopy light
-LEAF_DK, LEAF, LEAF_LT = (38, 86, 52), (70, 130, 74), (132, 176, 96)
-DAPPLE = (210, 226, 150)
+# Blue is EXACTLY 0 on every colour here -- the whole point of the fix. Neutral
+# grey (85,85,85) on the PT2 palette needs blue ~85; Floyd-Steinberg dithers each
+# channel independently, so a small non-zero blue would still stipple some pixels
+# up to blue=85 (reintroducing grey/teal). With blue pinned to 0, the blue channel
+# carries no quantisation error at all, so dither only ever blends (r,g,0) cells --
+# greens, limes and warm olives, never the grey plate that sat behind the parrot.
+SKY_TOP, SKY_BOT = (10, 64, 0), (26, 128, 0)          # shaded canopy depth
+LEAF_DK, LEAF = (16, 72, 0), (30, 132, 0)             # shadow & body greens
+LEAF_LT, DAPPLE = (96, 196, 0), (176, 244, 0)         # sunlit lime & bright specks
 
 def procedural_jungle():
     size = (W * SS, H * SS)
+    rnd = random.Random(11)   # fixed seed -> reproducible canopy
 
-    def ebox(cx, cy, rx, ry):
-        return [(cx - rx) * SS, (cy - ry) * SS, (cx + rx) * SS, (cy + ry) * SS]
-
-    # vertical canopy-light gradient
+    # vertical canopy-light gradient (darker at top, opening up lower down)
     base = Image.new('RGBA', size)
     d = ImageDraw.Draw(base)
     for y in range(size[1]):
@@ -97,33 +102,53 @@ def procedural_jungle():
         d.line([(0, y), (size[0], y)],
                fill=tuple(int(SKY_TOP[i] + (SKY_BOT[i] - SKY_TOP[i]) * t) for i in range(3)) + (255,))
 
-    def add_blobs(blobs, blur):
+    def stamp_cluster(dd, cx, cy, spread, leaf_r, col, alpha, n):
+        """A clump of overlapping leaf ellipses -> reads as foliage, not a blob."""
+        for _ in range(n):
+            ox = rnd.uniform(-spread, spread)
+            oy = rnd.uniform(-spread * 0.55, spread * 0.55)
+            rx = leaf_r * rnd.uniform(0.6, 1.1)
+            ry = rx * rnd.uniform(0.45, 0.7)
+            x, y = (cx + ox) * SS, (cy + oy) * SS
+            dd.ellipse([x - rx * SS, y - ry * SS, x + rx * SS, y + ry * SS],
+                       fill=col + (alpha,))
+
+    def add_layer(clusters, leaf_r, col, alpha, n, blur):
         nonlocal base
         lyr = Image.new('RGBA', size, (0, 0, 0, 0))
         dd = ImageDraw.Draw(lyr)
-        for cx, cy, rx, ry, col, a in blobs:
-            dd.ellipse(ebox(cx, cy, rx, ry), fill=col + (a,))
+        for cx, cy, spread in clusters:
+            stamp_cluster(dd, cx, cy, spread, leaf_r, col, alpha, n)
         base = Image.alpha_composite(base, lyr.filter(ImageFilter.GaussianBlur(blur)))
 
-    # far, soft foliage masses
-    add_blobs([
-        (20, 30, 46, 40, LEAF_DK, 200), (170, 24, 52, 44, LEAF_DK, 200),
-        (96, 8, 50, 30, LEAF, 170), (4, 120, 40, 60, LEAF_DK, 190),
-        (196, 130, 44, 64, LEAF_DK, 190), (150, 200, 60, 46, LEAF_DK, 210),
-        (40, 210, 56, 44, LEAF_DK, 210),
-    ], 9 * SS)
-    # nearer, sharper leaf clusters
-    add_blobs([
-        (54, 18, 30, 20, LEAF, 200), (134, 40, 26, 18, LEAF_LT, 170),
-        (24, 86, 22, 16, LEAF, 190), (182, 78, 24, 18, LEAF, 190),
-        (108, 188, 30, 22, LEAF, 200), (76, 214, 26, 18, LEAF_LT, 180),
-    ], 4 * SS)
-    # dappled sunlight specks
-    add_blobs([
-        (60, 60, 5, 5, DAPPLE, 150), (150, 30, 4, 4, DAPPLE, 140),
-        (30, 150, 5, 5, DAPPLE, 130), (185, 160, 4, 4, DAPPLE, 130),
-        (120, 110, 4, 4, DAPPLE, 120), (95, 175, 5, 5, DAPPLE, 130),
-    ], 2.5 * SS)
+    # Layer 1 -- far, very soft dark masses for depth (whole frame, behind all).
+    add_layer([(24, 26, 40), (176, 22, 42), (100, 6, 46), (6, 116, 38),
+               (196, 128, 40), (150, 206, 48), (40, 212, 46), (100, 120, 50)],
+              leaf_r=24, col=LEAF_DK, alpha=205, n=7, blur=7 * SS)
+
+    # Layer 2 -- the canopy itself: mid-green leaf clumps framing the parrot,
+    # dense along the top and down both sides, sparse over the open centre.
+    add_layer([(18, 14, 26), (54, 8, 26), (96, 6, 26), (140, 10, 26), (182, 16, 26),
+               (10, 60, 22), (12, 104, 22), (16, 150, 22),
+               (190, 56, 22), (188, 100, 22), (184, 148, 22),
+               (40, 210, 24), (150, 206, 24), (96, 220, 22)],
+              leaf_r=17, col=LEAF, alpha=210, n=7, blur=3.5 * SS)
+
+    # Layer 3 -- sunlit highlights catching the tops of the canopy clumps.
+    add_layer([(50, 10, 18), (108, 8, 18), (170, 14, 18),
+               (12, 66, 14), (188, 74, 14), (16, 132, 14), (190, 130, 14),
+               (44, 206, 16), (152, 202, 16)],
+              leaf_r=10, col=LEAF_LT, alpha=185, n=6, blur=2.0 * SS)
+
+    # Layer 4 -- bright dappled-sunlight specks scattered through the leaves.
+    lyr = Image.new('RGBA', size, (0, 0, 0, 0))
+    dd = ImageDraw.Draw(lyr)
+    for _ in range(34):
+        x = rnd.uniform(0, W); y = rnd.uniform(0, H * 0.92)
+        r = rnd.uniform(2.0, 4.0)
+        dd.ellipse([(x - r) * SS, (y - r) * SS, (x + r) * SS, (y + r) * SS],
+                   fill=DAPPLE + (rnd.randint(110, 165),))
+    base = Image.alpha_composite(base, lyr.filter(ImageFilter.GaussianBlur(2.0 * SS)))
 
     return base.convert('RGB').resize((W, H), Image.LANCZOS)
 
@@ -138,8 +163,10 @@ if __name__ == '__main__':
         print('using AI source', os.path.basename(src))
     else:
         img = procedural_jungle()
-        # the placeholder is smooth & near-palette already; dithering just adds speckle
-        dither = False
+        # Dither ON: with blue pinned low everywhere, Floyd-Steinberg only blends
+        # neighbouring green/lime palette cells, turning the layered canopy into a
+        # soft leafy stipple (no grey, which would need blue ~85).
+        dither = True
         print('no jungle_source.* found -> procedural placeholder')
 
     img = add_vignette(img)
