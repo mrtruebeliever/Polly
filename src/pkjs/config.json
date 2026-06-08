@@ -73,6 +73,23 @@
   {
     "type": "section",
     "items": [
+      { "type": "heading", "defaultValue": "Vraag het de AI" },
+      {
+        "type": "text",
+        "defaultValue": "Druk op het horloge op de bovenknop, stel een vraag, en Polly antwoordt kort. Vul hieronder je eigen Anthropic (Claude) API-sleutel in. De sleutel blijft alleen op je telefoon."
+      },
+      {
+        "type": "input",
+        "messageKey": "ANTHROPIC_API_KEY",
+        "label": "Anthropic API-sleutel",
+        "defaultValue": "",
+        "attributes": { "type": "password", "placeholder": "sk-ant-..." }
+      }
+    ]
+  },
+  {
+    "type": "section",
+    "items": [
       { "type": "heading", "defaultValue": "Snelle zinnen" },
       {
         "type": "text",

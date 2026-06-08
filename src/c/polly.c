@@ -23,6 +23,18 @@ static void send_transcript(const char *text) {
   app_message_outbox_send();
 }
 
+// Sends a question for the phone to route to the AI (instead of speaking it
+// verbatim). The phone replies with ANSWER (shown in the bubble) + the AUDIO_*
+// stream of the spoken answer.
+static void send_question(const char *text) {
+  DictionaryIterator *out;
+  if (app_message_outbox_begin(&out) != APP_MSG_OK) {
+    return;
+  }
+  dict_write_cstring(out, MESSAGE_KEY_QUESTION, text);
+  app_message_outbox_send();
+}
+
 // --- Speak an arbitrary string (shared by dictation + preset phrases) ---------
 
 static void speak_text(const char *text) {
@@ -58,6 +70,28 @@ static void on_dictation_result(DictationResult result, const char *transcript) 
   }
 }
 
+// AI variant: the dictated text is a question -> ask the phone's AI, then speak
+// the answer (rather than speaking the question verbatim).
+static void on_ai_dictation_result(DictationResult result, const char *transcript) {
+  switch (result) {
+    case DICTATION_RESULT_SUCCESS:
+      parrot_window_show_transcript(transcript);   // show the question while thinking
+      parrot_window_set_state(UI_STATE_THINKING);
+      s_audio_expected = true;
+      send_question(transcript);
+      break;
+
+    case DICTATION_RESULT_CANCELLED:
+      parrot_window_set_state(UI_STATE_IDLE);
+      break;
+
+    case DICTATION_RESULT_ERROR:
+      parrot_window_show_message("Couldn't hear you");
+      parrot_window_set_state(UI_STATE_ERROR);
+      break;
+  }
+}
+
 static void on_select_pressed(void) {
   if (parrot_window_get_state() != UI_STATE_IDLE) {
     return;
@@ -69,6 +103,19 @@ static void on_select_pressed(void) {
   }
   parrot_window_set_state(UI_STATE_LISTENING);
   dictation_flow_start(on_dictation_result);
+}
+
+static void on_up_pressed(void) {
+  if (parrot_window_get_state() != UI_STATE_IDLE) {
+    return;
+  }
+  if (!dictation_flow_is_available()) {
+    parrot_window_show_message("No mic available");
+    parrot_window_set_state(UI_STATE_ERROR);
+    return;
+  }
+  parrot_window_set_state(UI_STATE_LISTENING);
+  dictation_flow_start(on_ai_dictation_result);
 }
 
 static void on_down_pressed(void) {
@@ -153,6 +200,14 @@ static void inbox_received(DictionaryIterator *iter, void *context) {
     handle_tts_error(t);
     return;
   }
+  // The AI's answer text, to show in the bubble while Polly speaks it. Only
+  // honoured mid-round-trip so a stray late message can't hijack the bubble.
+  if ((t = dict_find(iter, MESSAGE_KEY_ANSWER))) {
+    if (s_audio_expected) {
+      parrot_window_show_transcript(t->value->cstring);
+    }
+    return;
+  }
   if (dict_find(iter, MESSAGE_KEY_AUDIO_FORMAT)) {
     handle_audio_format(iter);
     return;
@@ -194,6 +249,7 @@ static void init(void) {
   config_load();
   dictation_flow_init();
   parrot_window_set_select_handler(on_select_pressed);
+  parrot_window_set_up_handler(on_up_pressed);
   parrot_window_set_down_handler(on_down_pressed);
   parrot_window_push();
 

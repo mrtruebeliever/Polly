@@ -24,6 +24,9 @@
     },
     "messageKeys": [
       "TRANSCRIPT",
+      "QUESTION",
+      "ANSWER",
+      "ANTHROPIC_API_KEY",
       "AUDIO_FORMAT",
       "AUDIO_TOTAL_LEN",
       "AUDIO_CHUNK_INDEX",

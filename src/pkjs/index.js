@@ -7,6 +7,15 @@ var SAMPLE_RATE_HZ = 8000;
 var CHUNK_SIZE = 256;            // must match AUDIO_CHUNK_SIZE in audio_playback.h
 var AUDIO_FORMAT_8KHZ_8BIT = 0;  // SpeakerPcmFormat_8kHz_8bit, see audio_playback.c
 
+// Ask-AI: the UP button dictates a question, we ask Claude for a short answer,
+// then feed that answer through the same Google-TTS speak() path.
+var ANTHROPIC_URL = 'https://api.anthropic.com/v1/messages';
+var AI_MODEL = 'claude-haiku-4-5';   // fast + cheap, ideal for 1-2 sentence spoken replies
+var AI_MAX_TOKENS = 150;
+var AI_SYSTEM = 'You are Polly, a parrot voice assistant on a smartwatch. Answer in at most ' +
+  '1-2 short spoken sentences. Plain text only -- no markdown, lists, code, or emoji. ' +
+  'Be direct and friendly.';
+
 // Codes sent in TTS_ERROR -- the watch shows the same message for all of them,
 // these only matter for `pebble logs` diagnosis.
 var TTS_ERR_NO_KEY = 1;
@@ -198,16 +207,79 @@ function speak(text) {
   xhr.send(body);
 }
 
+// --- Ask-AI call --------------------------------------------------------------
+
+function sendAnswer(text) {
+  var msg = {};
+  msg[keys.ANSWER] = text;
+  Pebble.sendAppMessage(msg);  // lets the watch show the answer in the bubble while it speaks
+}
+
+function askAI(question) {
+  var apiKey = localStorage.getItem('ANTHROPIC_API_KEY') || '';
+  if (!apiKey) {
+    console.log('polly: no Anthropic API key configured');
+    sendTtsError(TTS_ERR_NO_KEY);
+    return;
+  }
+
+  var body = JSON.stringify({
+    model: AI_MODEL,
+    max_tokens: AI_MAX_TOKENS,
+    system: AI_SYSTEM,
+    messages: [{ role: 'user', content: question }]
+  });
+
+  var xhr = new XMLHttpRequest();
+  xhr.open('POST', ANTHROPIC_URL);
+  xhr.setRequestHeader('Content-Type', 'application/json');
+  xhr.setRequestHeader('x-api-key', apiKey);
+  xhr.setRequestHeader('anthropic-version', '2023-06-01');
+  // PebbleKit JS runs in a browser-like context; Anthropic blocks browser-origin
+  // calls unless this header opts in.
+  xhr.setRequestHeader('anthropic-dangerous-direct-browser-access', 'true');
+  xhr.timeout = 25000;
+  xhr.onload = function () {
+    if (xhr.status < 200 || xhr.status >= 300) {
+      console.log('polly: AI HTTP ' + xhr.status + ': ' + xhr.responseText);
+      sendTtsError(TTS_ERR_REQUEST_FAILED);
+      return;
+    }
+    var answer = null;
+    try {
+      var content = JSON.parse(xhr.responseText).content || [];
+      for (var i = 0; i < content.length; i++) {
+        if (content[i].type === 'text') { answer = content[i].text; break; }
+      }
+    } catch (e) {
+      console.log('polly: AI response parse error: ' + e);
+    }
+    if (!answer || !answer.length) {
+      sendTtsError(TTS_ERR_BAD_RESPONSE);
+      return;
+    }
+    answer = answer.trim();
+    sendAnswer(answer);
+    speak(answer);
+  };
+  xhr.onerror = function () { console.log('polly: AI request failed'); sendTtsError(TTS_ERR_REQUEST_FAILED); };
+  xhr.ontimeout = function () { console.log('polly: AI request timed out'); sendTtsError(TTS_ERR_REQUEST_FAILED); };
+  xhr.send(body);
+}
+
 // --- Lifecycle ----------------------------------------------------------------
 
 Pebble.addEventListener('showConfiguration', function () {
   Pebble.openURL(clay.generateUrl());
 });
 
-// Watch -> phone: a freshly dictated transcript to speak aloud.
+// Watch -> phone: either a QUESTION (UP button -> ask AI, then speak the answer)
+// or a TRANSCRIPT (SELECT dictation / preset phrase -> speak verbatim).
 Pebble.addEventListener('appmessage', function (e) {
   var d = (e && e.payload) || {};
-  if (typeof d.TRANSCRIPT === 'string' && d.TRANSCRIPT.length) {
+  if (typeof d.QUESTION === 'string' && d.QUESTION.length) {
+    askAI(d.QUESTION);
+  } else if (typeof d.TRANSCRIPT === 'string' && d.TRANSCRIPT.length) {
     speak(d.TRANSCRIPT);
   }
 });
@@ -222,9 +294,11 @@ Pebble.addEventListener('webviewclosed', function (e) {
   localStorage.setItem('TTS_API_KEY', (s[keys.TTS_API_KEY] || '').toString().trim());
   localStorage.setItem('VOICE_LANG', (s[keys.VOICE_LANG] || '').toString().trim());
   localStorage.setItem('VOICE_NAME', (s[keys.VOICE_NAME] || '').toString().trim());
+  localStorage.setItem('ANTHROPIC_API_KEY', (s[keys.ANTHROPIC_API_KEY] || '').toString().trim());
   delete s[keys.TTS_API_KEY];
   delete s[keys.VOICE_LANG];
   delete s[keys.VOICE_NAME];
+  delete s[keys.ANTHROPIC_API_KEY];
 
   Pebble.sendAppMessage(s, function () {}, function () {
     console.log('polly: settings send failed');
