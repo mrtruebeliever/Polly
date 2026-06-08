@@ -35,7 +35,11 @@
       "VOICE_NAME",
       "IDLE_ANIM_ENABLED",
       "IDLE_ANIM_FREQ",
-      "SPEECH_VOLUME"
+      "SPEECH_VOLUME",
+      "PRESET_1",
+      "PRESET_2",
+      "PRESET_3",
+      "PRESET_4"
     ],
     "resources": {
       "media": [

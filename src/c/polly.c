@@ -3,6 +3,8 @@
 #include "parrot_window.h"
 #include "dictation_flow.h"
 #include "audio_playback.h"
+#include "phrase_menu_window.h"
+#include "polly.h"
 
 // True from the moment we send a TRANSCRIPT until the AUDIO_* round trip ends
 // (success, TTS_ERROR, or a transport failure). Lets the inbox dispatcher tell
@@ -21,15 +23,28 @@ static void send_transcript(const char *text) {
   app_message_outbox_send();
 }
 
+// --- Speak an arbitrary string (shared by dictation + preset phrases) ---------
+
+static void speak_text(const char *text) {
+  parrot_window_show_transcript(text);
+  parrot_window_set_state(UI_STATE_THINKING);
+  s_audio_expected = true;
+  send_transcript(text);
+}
+
+void polly_speak_phrase(const char *text) {
+  if (!text || !text[0] || parrot_window_get_state() != UI_STATE_IDLE) {
+    return;
+  }
+  speak_text(text);
+}
+
 // --- Dictation result ---------------------------------------------------------
 
 static void on_dictation_result(DictationResult result, const char *transcript) {
   switch (result) {
     case DICTATION_RESULT_SUCCESS:
-      parrot_window_show_transcript(transcript);
-      parrot_window_set_state(UI_STATE_THINKING);
-      s_audio_expected = true;
-      send_transcript(transcript);
+      speak_text(transcript);
       break;
 
     case DICTATION_RESULT_CANCELLED:
@@ -54,6 +69,18 @@ static void on_select_pressed(void) {
   }
   parrot_window_set_state(UI_STATE_LISTENING);
   dictation_flow_start(on_dictation_result);
+}
+
+static void on_down_pressed(void) {
+  if (parrot_window_get_state() != UI_STATE_IDLE) {
+    return;
+  }
+  if (config_preset_count() == 0) {
+    parrot_window_show_message("No phrases set");
+    parrot_window_set_state(UI_STATE_ERROR);
+    return;
+  }
+  phrase_menu_window_push(polly_speak_phrase);
 }
 
 // --- Playback completion -------------------------------------------------------
@@ -167,6 +194,7 @@ static void init(void) {
   config_load();
   dictation_flow_init();
   parrot_window_set_select_handler(on_select_pressed);
+  parrot_window_set_down_handler(on_down_pressed);
   parrot_window_push();
 
   app_message_register_inbox_received(inbox_received);

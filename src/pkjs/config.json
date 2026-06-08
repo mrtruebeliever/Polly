@@ -70,5 +70,19 @@
       }
     ]
   },
+  {
+    "type": "section",
+    "items": [
+      { "type": "heading", "defaultValue": "Snelle zinnen" },
+      {
+        "type": "text",
+        "defaultValue": "Vaste zinnen die Polly kan uitspreken. Druk op het horloge op de onderknop om een zin te kiezen. Laat een veld leeg om het over te slaan."
+      },
+      { "type": "input", "messageKey": "PRESET_1", "label": "Zin 1", "defaultValue": "", "attributes": { "placeholder": "bv. Ik kom eraan!" } },
+      { "type": "input", "messageKey": "PRESET_2", "label": "Zin 2", "defaultValue": "", "attributes": { "placeholder": "bv. Ja, graag" } },
+      { "type": "input", "messageKey": "PRESET_3", "label": "Zin 3", "defaultValue": "", "attributes": { "placeholder": "bv. Geef me vijf minuten" } },
+      { "type": "input", "messageKey": "PRESET_4", "label": "Zin 4", "defaultValue": "", "attributes": { "placeholder": "bv. Praat tegen me, Polly" } }
+    ]
+  },
   { "type": "submit", "defaultValue": "Opslaan" }
 ]

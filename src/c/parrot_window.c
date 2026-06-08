@@ -22,6 +22,8 @@ static char s_bubble_buf[256];
 
 static AppUiState s_state = UI_STATE_IDLE;
 static void (*s_select_handler)(void);
+static void (*s_up_handler)(void);
+static void (*s_down_handler)(void);
 
 // --- Pose bitmaps: loaded in small per-state groups, never all 5 at once ----
 //
@@ -217,14 +219,36 @@ void parrot_window_set_select_handler(void (*handler)(void)) {
   s_select_handler = handler;
 }
 
+void parrot_window_set_up_handler(void (*handler)(void)) {
+  s_up_handler = handler;
+}
+
+void parrot_window_set_down_handler(void (*handler)(void)) {
+  s_down_handler = handler;
+}
+
 static void prv_select_click_handler(ClickRecognizerRef recognizer, void *context) {
   if (s_select_handler) {
     s_select_handler();
   }
 }
 
+static void prv_up_click_handler(ClickRecognizerRef recognizer, void *context) {
+  if (s_up_handler) {
+    s_up_handler();
+  }
+}
+
+static void prv_down_click_handler(ClickRecognizerRef recognizer, void *context) {
+  if (s_down_handler) {
+    s_down_handler();
+  }
+}
+
 static void prv_click_config_provider(void *context) {
   window_single_click_subscribe(BUTTON_ID_SELECT, prv_select_click_handler);
+  window_single_click_subscribe(BUTTON_ID_UP, prv_up_click_handler);
+  window_single_click_subscribe(BUTTON_ID_DOWN, prv_down_click_handler);
 }
 
 // --- Touch handling (PBL_TOUCH -- emery has a real touchscreen) -------------

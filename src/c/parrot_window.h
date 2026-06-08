@@ -28,6 +28,12 @@ void parrot_window_destroy(void);
 // e.g. only starting dictation while in UI_STATE_IDLE).
 void parrot_window_set_select_handler(void (*handler)(void));
 
+// Single-click handlers for UP (ask-AI) and DOWN (preset-phrase menu). Same
+// pattern as SELECT: parrot_window owns the click config; the caller decides
+// how to react (e.g. only while UI_STATE_IDLE).
+void parrot_window_set_up_handler(void (*handler)(void));
+void parrot_window_set_down_handler(void (*handler)(void));
+
 // Centralizes UI transitions: updates the state label, shows/hides the speech
 // bubble appropriately, and starts/stops the matching idle/talk animation.
 void parrot_window_set_state(AppUiState state);
