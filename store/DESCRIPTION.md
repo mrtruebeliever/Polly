@@ -25,4 +25,12 @@ phone. Voice, language, volume, animation frequency and quick phrases are all
 configurable.
 
 **Category:** Tools / Fun
-**Version:** 1.1.0
+**Version:** 1.2.0
+
+---
+
+## Release notes — 1.2.0
+
+- On-watch button-hint icons (ask / dictate / quick phrases).
+- BACK now returns to the home screen from an error or busy state instead of
+  exiting the app.
