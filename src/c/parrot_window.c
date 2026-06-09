@@ -157,6 +157,34 @@ void parrot_window_clear_bubble(void) {
   text_layer_set_text(s_bubble_text, "");
 }
 
+// --- Jungle backdrop (freed while busy to reclaim heap) ---------------------
+//
+// The full-screen backdrop is ~45KB resident -- the single biggest heap user.
+// While Polly is busy (THINKING/SPEAKING/etc.) we free it and fall back to a
+// solid green fill so the audio reassembly buffer has room to malloc; the heap,
+// not AUDIO_MAX_BUFFER_BYTES, was the real ceiling on phrase length. It's
+// restored on the return to idle, when the buffer is already freed again.
+
+static void prv_release_backdrop(void) {
+  if (!s_bg_bitmap) {
+    return;
+  }
+  bitmap_layer_set_bitmap(s_bg_layer, NULL);
+  bitmap_layer_set_background_color(s_bg_layer, GColorDarkGreen);
+  gbitmap_destroy(s_bg_bitmap);
+  s_bg_bitmap = NULL;
+}
+
+static void prv_restore_backdrop(void) {
+  if (s_bg_bitmap || !s_bg_layer) {
+    return;  // already loaded, or window not built yet
+  }
+  s_bg_bitmap = gbitmap_create_with_resource(RESOURCE_ID_IMG_JUNGLE_BG);
+  if (s_bg_bitmap) {
+    bitmap_layer_set_bitmap(s_bg_layer, s_bg_bitmap);
+  }
+}
+
 // --- Pose / state -----------------------------------------------------------
 
 void parrot_window_set_pose(ParrotPose pose) {
@@ -208,6 +236,15 @@ void parrot_window_set_state(AppUiState state) {
 
   if (state == UI_STATE_IDLE || state == UI_STATE_LISTENING) {
     parrot_window_clear_bubble();
+  }
+
+  // Reclaim the ~45KB backdrop while busy so the audio buffer can malloc;
+  // restore it once we're idle again. Done before loading the pose group so the
+  // freed heap is available for both the buffer and the pose bitmaps.
+  if (state == UI_STATE_IDLE) {
+    prv_restore_backdrop();
+  } else {
+    prv_release_backdrop();
   }
 
   // Swap in the pose bitmaps this state needs *before* parrot_anim's timers

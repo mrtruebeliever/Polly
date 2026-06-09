@@ -35,6 +35,19 @@ static void send_question(const char *text) {
   app_message_outbox_send();
 }
 
+// Flow control for streamed audio: tell the phone the highest chunk index we
+// can currently accept. audio_playback raises this as it drains its ring, so
+// delivery self-throttles to the playback rate. Returns whether the request
+// went out (false on a busy outbox -- audio_playback retries on the next pump).
+static bool send_chunk_request(int up_to_index) {
+  DictionaryIterator *out;
+  if (app_message_outbox_begin(&out) != APP_MSG_OK) {
+    return false;
+  }
+  dict_write_int32(out, MESSAGE_KEY_CHUNK_REQUEST, up_to_index);
+  return app_message_outbox_send() == APP_MSG_OK;
+}
+
 // --- Speak an arbitrary string (shared by dictation + preset phrases) ---------
 
 static void speak_text(const char *text) {
@@ -169,7 +182,12 @@ static void handle_audio_format(DictionaryIterator *iter) {
   if (!s_audio_expected || !t_format || !t_total) {
     return;
   }
-  if (!audio_playback_begin((uint32_t)t_total->value->int32, (int)t_format->value->int32)) {
+  // Streamed playback: begin allocates only a small ring and grants the phone
+  // its first window of chunks; the speaker starts once enough has buffered.
+  if (audio_playback_begin((uint32_t)t_total->value->int32, (int)t_format->value->int32,
+                           send_chunk_request, on_playback_done)) {
+    parrot_window_set_state(UI_STATE_SPEAKING);
+  } else {
     s_audio_expected = false;
     parrot_window_show_message("Audio too large");
     parrot_window_set_state(UI_STATE_ERROR);
@@ -184,21 +202,6 @@ static void handle_audio_chunk(DictionaryIterator *iter) {
   }
   audio_playback_append_chunk((uint32_t)t_index->value->int32, t_chunk->value->data,
                               t_chunk->length);
-}
-
-static void handle_audio_done(void) {
-  if (!s_audio_expected) {
-    return;
-  }
-  // Hand the PCM to the speaker (which copies it) and free the up-to-64KB
-  // reassembly buffer FIRST, then load the SPEAK pose bitmaps. Doing it the
-  // other way around keeps both resident at once and overflows emery's heap
-  // for longer phrases -- the corrupt-bitmap crash this whole flow caused.
-  // On a synchronous failure audio_playback_finish already drove the UI via
-  // on_playback_done, so don't force SPEAKING on top of it.
-  if (audio_playback_finish(on_playback_done)) {
-    parrot_window_set_state(UI_STATE_SPEAKING);
-  }
 }
 
 // --- AppMessage plumbing -------------------------------------------------------
@@ -227,10 +230,6 @@ static void inbox_received(DictionaryIterator *iter, void *context) {
   }
   if (dict_find(iter, MESSAGE_KEY_AUDIO_CHUNK)) {
     handle_audio_chunk(iter);
-    return;
-  }
-  if (dict_find(iter, MESSAGE_KEY_AUDIO_DONE)) {
-    handle_audio_done();
     return;
   }
 

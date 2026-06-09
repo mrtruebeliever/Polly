@@ -4,7 +4,7 @@ var clay = new Clay(clayConfig);
 var keys = require('message_keys');
 
 var SAMPLE_RATE_HZ = 8000;
-var CHUNK_SIZE = 256;            // must match AUDIO_CHUNK_SIZE in audio_playback.h
+var CHUNK_SIZE = 1024;           // must match AUDIO_CHUNK_SIZE in audio_playback.h
 var AUDIO_FORMAT_8KHZ_8BIT = 0;  // SpeakerPcmFormat_8kHz_8bit, see audio_playback.c
 
 // Ask-AI: the UP button dictates a question, we ask Google Gemini (free tier)
@@ -112,40 +112,60 @@ function downsampleTo8Bit(pcm16) {
 
 // --- Outbound: streamed PCM ---------------------------------------------------
 
-// ACK-chained transfer (one AppMessage per chunk, advancing only once the
-// previous one is acked) so the watch's inbox buffer never overflows --
-// adapted from PebbleKuma's streamMonitors(). Any failure aborts the whole
-// transfer rather than continuing: a partial PCM buffer just plays as noise.
+// Credit-based streaming: the watch holds only a small ring buffer and grants
+// us a "highest chunk index you may send" (CHUNK_REQUEST) that it raises as it
+// drains the ring. We push chunks (ACK-chained, so the inbox never overflows)
+// up to the current grant, then wait. This throttles delivery to the playback
+// rate and keeps watch memory bounded regardless of phrase length. Any failure
+// aborts the whole transfer -- a gap in the PCM just plays as noise.
+var streamState = null;
+
+function pumpStream() {
+  var s = streamState;
+  if (!s || s.sending) {
+    return;
+  }
+  if (s.sentUpTo > s.grantedMax || s.sentUpTo >= s.chunkCount) {
+    if (s.sentUpTo >= s.chunkCount) {
+      streamState = null;  // everything sent; the watch drives playback to the end
+    }
+    return;
+  }
+  var i = s.sentUpTo;
+  var start = i * CHUNK_SIZE;
+  var msg = {};
+  msg[keys.AUDIO_CHUNK_INDEX] = i;
+  msg[keys.AUDIO_CHUNK] = s.pcm.slice(start, start + CHUNK_SIZE);
+  s.sending = true;
+  Pebble.sendAppMessage(msg, function () {
+    if (streamState !== s) { return; }  // aborted/superseded mid-send
+    s.sending = false;
+    s.sentUpTo = i + 1;
+    pumpStream();
+  }, function () {
+    console.log('polly: audio chunk ' + i + ' send failed');
+    streamState = null;
+    sendTtsError(TTS_ERR_STREAM_FAILED);
+  });
+}
+
 function streamAudio(pcmBytes) {
   var total = pcmBytes.length;
+  streamState = {
+    pcm: pcmBytes,
+    total: total,
+    chunkCount: Math.ceil(total / CHUNK_SIZE),
+    sentUpTo: 0,      // next chunk index to send
+    grantedMax: -1,   // highest index the watch has granted so far
+    sending: false
+  };
   var head = {};
   head[keys.AUDIO_FORMAT] = AUDIO_FORMAT_8KHZ_8BIT;
   head[keys.AUDIO_TOTAL_LEN] = total;
-
-  Pebble.sendAppMessage(head, function () {
-    var chunkCount = Math.ceil(total / CHUNK_SIZE);
-    var i = 0;
-    function sendNext() {
-      if (i >= chunkCount) {
-        var done = {};
-        done[keys.AUDIO_DONE] = 1;
-        Pebble.sendAppMessage(done, function () {}, function () {
-          console.log('polly: AUDIO_DONE send failed');
-        });
-        return;
-      }
-      var start = i * CHUNK_SIZE;
-      var msg = {};
-      msg[keys.AUDIO_CHUNK_INDEX] = i;
-      msg[keys.AUDIO_CHUNK] = pcmBytes.slice(start, start + CHUNK_SIZE);
-      Pebble.sendAppMessage(msg, function () { i++; sendNext(); }, function () {
-        console.log('polly: audio chunk ' + i + ' send failed');
-        sendTtsError(TTS_ERR_STREAM_FAILED);
-      });
-    }
-    sendNext();
-  }, function () {
+  // Announce the size, then wait for the watch's first CHUNK_REQUEST.
+  Pebble.sendAppMessage(head, function () {}, function () {
     console.log('polly: audio header send failed');
+    streamState = null;
     sendTtsError(TTS_ERR_STREAM_FAILED);
   });
 }
@@ -285,7 +305,13 @@ Pebble.addEventListener('showConfiguration', function () {
 // or a TRANSCRIPT (SELECT dictation / preset phrase -> speak verbatim).
 Pebble.addEventListener('appmessage', function (e) {
   var d = (e && e.payload) || {};
-  if (typeof d.QUESTION === 'string' && d.QUESTION.length) {
+  if (typeof d.CHUNK_REQUEST === 'number') {
+    // Flow-control credit from the watch: raise the high-water index and push.
+    if (streamState && d.CHUNK_REQUEST > streamState.grantedMax) {
+      streamState.grantedMax = d.CHUNK_REQUEST;
+      pumpStream();
+    }
+  } else if (typeof d.QUESTION === 'string' && d.QUESTION.length) {
     askAI(d.QUESTION);
   } else if (typeof d.TRANSCRIPT === 'string' && d.TRANSCRIPT.length) {
     speak(d.TRANSCRIPT);

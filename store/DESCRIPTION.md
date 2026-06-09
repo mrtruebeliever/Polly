@@ -25,9 +25,18 @@ phone. Voice, language, volume, animation frequency and quick phrases are all
 configurable.
 
 **Category:** Tools / Fun
-**Version:** 1.2.0
+**Version:** 1.3.0
 
 ---
+
+## Release notes — 1.3.0
+
+- Polly can now speak much longer sentences — long phrases that used to fail with
+  "Audio too large" or get cut short now play in full.
+- Dictated sentences and preset quick phrases are no longer truncated
+  mid-sentence (now up to 200 characters).
+- More reliable speech: the TTS audio is streamed to the speaker as it arrives
+  instead of being buffered all at once.
 
 ## Release notes — 1.2.0
 

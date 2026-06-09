@@ -1,11 +1,13 @@
 #pragma once
 #include <pebble.h>
 
-// Hard cap on usable transcript length: bounds both the watch->phone AppMessage
-// payload and (more importantly) how many seconds of TTS audio must be streamed
-// back and buffered afterwards (~80 chars ≈ 5s ≈ 40KB PCM @ 8kHz/8-bit, a third
-// of emery's 128KB app heap -- see audio_playback.h for the buffering math).
-#define TRANSCRIPT_MAX_CHARS 80
+// Hard cap on usable transcript length. Mainly bounds the watch->phone
+// AppMessage payload now -- the TTS audio is streamed through a small fixed ring
+// (see audio_playback.h), so phrase length no longer has to fit a per-phrase
+// buffer. Raised 80 -> 200 once streaming removed that ceiling, so longer (and
+// fast-spoken) sentences aren't truncated mid-dictation. Stays well under the
+// 1024-byte outbox.
+#define TRANSCRIPT_MAX_CHARS 200
 
 typedef enum {
   DICTATION_RESULT_SUCCESS,    // `transcript` holds the capped, NUL-terminated text
