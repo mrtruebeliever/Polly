@@ -15,7 +15,9 @@ a soft contact shadow on its perch.
     .art-venv/bin/python resources/images/gen_art.py
 """
 import os
-from PIL import Image, ImageDraw, ImageFilter
+from PIL import Image, ImageDraw, ImageFilter, ImageFont
+
+FONT_BOLD = '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf'
 
 SS = 4                       # supersample factor; rendered at NxSS then LANCZOS-downsampled
 W, H = 140, 168              # logical parrot-frame size (drawing coordinate space)
@@ -256,6 +258,41 @@ def make_flap():
     beak(c, hx, hy, open_amount=3)
     return finish(c)
 
+# --- Action-bar button icons (white glyphs on the black bar) -----------------
+
+AICON = 20  # logical action-bar icon size
+
+def aicon():
+    return Image.new('RGBA', (AICON * SS, AICON * SS), (0, 0, 0, 0))
+
+def make_icon_talk():
+    """Microphone -- SELECT dictates a sentence to speak."""
+    c = aicon()
+    d = ImageDraw.Draw(c)
+    d.rounded_rectangle(ebox(10, 8, 3, 5), radius=3 * SS, fill=WHITE)   # capsule body
+    d.arc(ebox(10, 9, 5, 6), start=20, end=160, fill=WHITE, width=2 * SS)  # holder
+    d.line(pts([(10, 15), (10, 17)]), fill=WHITE, width=2 * SS)         # stem
+    d.line(pts([(7, 17), (13, 17)]), fill=WHITE, width=2 * SS)          # base
+    return c
+
+def make_icon_ask():
+    """Question mark -- UP asks the AI."""
+    c = aicon()
+    d = ImageDraw.Draw(c)
+    f = ImageFont.truetype(FONT_BOLD, 16 * SS)
+    bbox = d.textbbox((0, 0), '?', font=f)
+    tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
+    d.text(((AICON * SS - tw) / 2 - bbox[0], (AICON * SS - th) / 2 - bbox[1]), '?', font=f, fill=WHITE)
+    return c
+
+def make_icon_phrases():
+    """A short list -- DOWN opens the quick-phrase menu."""
+    c = aicon()
+    d = ImageDraw.Draw(c)
+    for y in (6, 10, 14):
+        d.rounded_rectangle(ebox(10, y, 6, 1.1), radius=1 * SS, fill=WHITE)
+    return c
+
 def make_menu_icon():
     isize = (ICON * SS, ICON * SS)
     c = layer(isize)
@@ -288,3 +325,6 @@ if __name__ == '__main__':
     save(make_speak(9), 'parrot_speak_2.png', PARROT_SCALE)
     save(make_flap(), 'parrot_flap.png', PARROT_SCALE)
     save(make_menu_icon(), 'menu_icon.png')
+    save(make_icon_talk(), 'action_talk.png')
+    save(make_icon_ask(), 'action_ask.png')
+    save(make_icon_phrases(), 'action_phrases.png')

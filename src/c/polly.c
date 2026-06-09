@@ -130,6 +130,19 @@ static void on_down_pressed(void) {
   phrase_menu_window_push(polly_speak_phrase);
 }
 
+// BACK: from any non-idle state (error, thinking, speaking) return to the idle
+// start screen instead of quitting; abort any in-flight audio. From idle, BACK
+// exits the app as usual.
+static void on_back_pressed(void) {
+  if (parrot_window_get_state() == UI_STATE_IDLE) {
+    window_stack_pop(true);
+    return;
+  }
+  s_audio_expected = false;
+  audio_playback_abort();
+  parrot_window_set_state(UI_STATE_IDLE);
+}
+
 // --- Playback completion -------------------------------------------------------
 
 static void on_playback_done(bool success) {
@@ -251,6 +264,7 @@ static void init(void) {
   parrot_window_set_select_handler(on_select_pressed);
   parrot_window_set_up_handler(on_up_pressed);
   parrot_window_set_down_handler(on_down_pressed);
+  parrot_window_set_back_handler(on_back_pressed);
   parrot_window_push();
 
   app_message_register_inbox_received(inbox_received);

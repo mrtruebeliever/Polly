@@ -20,10 +20,14 @@ static Layer *s_bubble_layer;
 static TextLayer *s_bubble_text;
 static char s_bubble_buf[256];
 
+static ActionBarLayer *s_action_bar;
+static GBitmap *s_icon_ask, *s_icon_talk, *s_icon_phrases;
+
 static AppUiState s_state = UI_STATE_IDLE;
 static void (*s_select_handler)(void);
 static void (*s_up_handler)(void);
 static void (*s_down_handler)(void);
+static void (*s_back_handler)(void);
 
 // --- Pose bitmaps: loaded in small per-state groups, never all 5 at once ----
 //
@@ -227,6 +231,10 @@ void parrot_window_set_down_handler(void (*handler)(void)) {
   s_down_handler = handler;
 }
 
+void parrot_window_set_back_handler(void (*handler)(void)) {
+  s_back_handler = handler;
+}
+
 static void prv_select_click_handler(ClickRecognizerRef recognizer, void *context) {
   if (s_select_handler) {
     s_select_handler();
@@ -245,10 +253,19 @@ static void prv_down_click_handler(ClickRecognizerRef recognizer, void *context)
   }
 }
 
+static void prv_back_click_handler(ClickRecognizerRef recognizer, void *context) {
+  if (s_back_handler) {
+    s_back_handler();
+  }
+}
+
 static void prv_click_config_provider(void *context) {
   window_single_click_subscribe(BUTTON_ID_SELECT, prv_select_click_handler);
   window_single_click_subscribe(BUTTON_ID_UP, prv_up_click_handler);
   window_single_click_subscribe(BUTTON_ID_DOWN, prv_down_click_handler);
+  // Override the default BACK (which would exit the app) so the caller can
+  // bounce back to idle from an error/busy state.
+  window_single_click_subscribe(BUTTON_ID_BACK, prv_back_click_handler);
 }
 
 // --- Touch handling (PBL_TOUCH -- emery has a real touchscreen) -------------
@@ -273,6 +290,9 @@ static void prv_touch_handler(const TouchEvent *event, void *context) {
 static void prv_window_load(Window *window) {
   Layer *window_layer = window_get_root_layer(window);
   GRect bounds = layer_get_unobstructed_bounds(window_layer);
+  // Reserve the right edge for the action bar; lay the parrot/label/bubble out
+  // in the remaining width so nothing hides behind the button icons.
+  int16_t content_w = bounds.size.w - ACTION_BAR_WIDTH;
 
   // Load just the pose group UI_STATE_IDLE needs (IDLE/BLINK/TILT) -- the
   // full set of 5 plus the backdrop below would overflow the app heap at
@@ -293,7 +313,7 @@ static void prv_window_load(Window *window) {
   bitmap_layer_set_bitmap(s_bg_layer, s_bg_bitmap);
   layer_add_child(window_layer, bitmap_layer_get_layer(s_bg_layer));
 
-  s_state_label = text_layer_create(GRect(0, 0, bounds.size.w, STATE_LABEL_HEIGHT));
+  s_state_label = text_layer_create(GRect(0, 0, content_w, STATE_LABEL_HEIGHT));
   text_layer_set_font(s_state_label, fonts_get_system_font(FONT_KEY_GOTHIC_18));
   text_layer_set_text_alignment(s_state_label, GTextAlignmentCenter);
   text_layer_set_background_color(s_state_label, GColorClear);
@@ -303,7 +323,7 @@ static void prv_window_load(Window *window) {
   GBitmap *idle_bitmap = prv_bitmap_for_pose(PARROT_POSE_IDLE);
   GRect frame = idle_bitmap ? gbitmap_get_bounds(idle_bitmap)
                             : GRect(0, 0, FALLBACK_PARROT_SIZE, FALLBACK_PARROT_SIZE);
-  frame.origin.x = (bounds.size.w - frame.size.w) / 2;
+  frame.origin.x = (content_w - frame.size.w) / 2;
   frame.origin.y = STATE_LABEL_HEIGHT +
       (bounds.size.h - STATE_LABEL_HEIGHT - frame.size.h) / 2;
   s_parrot_origin = frame.origin;
@@ -316,7 +336,7 @@ static void prv_window_load(Window *window) {
 
   GRect bubble_frame = GRect(BUBBLE_MARGIN,
                              bounds.size.h - BUBBLE_HEIGHT - BUBBLE_MARGIN,
-                             bounds.size.w - 2 * BUBBLE_MARGIN,
+                             content_w - 2 * BUBBLE_MARGIN,
                              BUBBLE_HEIGHT);
   s_bubble_layer = layer_create(bubble_frame);
   layer_set_update_proc(s_bubble_layer, bubble_layer_update_proc);
@@ -331,6 +351,18 @@ static void prv_window_load(Window *window) {
   text_layer_set_overflow_mode(s_bubble_text, GTextOverflowModeTrailingEllipsis);
   layer_add_child(s_bubble_layer, text_layer_get_layer(s_bubble_text));
 
+  // Action bar: icons telling the user what UP / SELECT / DOWN do.
+  s_icon_ask = gbitmap_create_with_resource(RESOURCE_ID_IMG_ICON_ASK);
+  s_icon_talk = gbitmap_create_with_resource(RESOURCE_ID_IMG_ICON_TALK);
+  s_icon_phrases = gbitmap_create_with_resource(RESOURCE_ID_IMG_ICON_PHRASES);
+  s_action_bar = action_bar_layer_create();
+  action_bar_layer_set_background_color(s_action_bar, GColorBlack);
+  action_bar_layer_set_icon(s_action_bar, BUTTON_ID_UP, s_icon_ask);       // ask AI
+  action_bar_layer_set_icon(s_action_bar, BUTTON_ID_SELECT, s_icon_talk);  // dictate
+  action_bar_layer_set_icon(s_action_bar, BUTTON_ID_DOWN, s_icon_phrases); // quick phrases
+  action_bar_layer_set_click_config_provider(s_action_bar, prv_click_config_provider);
+  action_bar_layer_add_to_window(s_action_bar, window);
+
   parrot_anim_init();
   parrot_window_set_state(UI_STATE_IDLE);
 
@@ -340,6 +372,13 @@ static void prv_window_load(Window *window) {
 static void prv_window_unload(Window *window) {
   touch_service_unsubscribe();
   parrot_anim_deinit();
+
+  action_bar_layer_destroy(s_action_bar);
+  gbitmap_destroy(s_icon_ask);
+  gbitmap_destroy(s_icon_talk);
+  gbitmap_destroy(s_icon_phrases);
+  s_action_bar = NULL;
+  s_icon_ask = s_icon_talk = s_icon_phrases = NULL;
 
   text_layer_destroy(s_bubble_text);
   layer_destroy(s_bubble_layer);
@@ -357,7 +396,8 @@ void parrot_window_push(void) {
     return;
   }
   s_window = window_create();
-  window_set_click_config_provider(s_window, prv_click_config_provider);
+  // The click config provider is registered via the action bar in prv_window_load
+  // (action_bar_layer_add_to_window), so it isn't set directly on the window here.
   window_set_window_handlers(s_window, (WindowHandlers) {
     .load = prv_window_load,
     .unload = prv_window_unload,

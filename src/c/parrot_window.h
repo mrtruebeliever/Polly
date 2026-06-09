@@ -34,6 +34,10 @@ void parrot_window_set_select_handler(void (*handler)(void));
 void parrot_window_set_up_handler(void (*handler)(void));
 void parrot_window_set_down_handler(void (*handler)(void));
 
+// BACK handler. parrot_window overrides the system default so the caller can,
+// e.g., return to idle from an error/busy state instead of exiting the app.
+void parrot_window_set_back_handler(void (*handler)(void));
+
 // Centralizes UI transitions: updates the state label, shows/hides the speech
 // bubble appropriately, and starts/stops the matching idle/talk animation.
 void parrot_window_set_state(AppUiState state);

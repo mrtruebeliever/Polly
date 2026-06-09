@@ -53,7 +53,10 @@
         { "type": "png", "name": "IMG_PARROT_TILT",   "file": "images/parrot_tilt.png" },
         { "type": "png", "name": "IMG_PARROT_SPEAK_1","file": "images/parrot_speak_1.png" },
         { "type": "png", "name": "IMG_PARROT_SPEAK_2","file": "images/parrot_speak_2.png" },
-        { "type": "png", "name": "IMG_PARROT_FLAP",   "file": "images/parrot_flap.png" }
+        { "type": "png", "name": "IMG_PARROT_FLAP",   "file": "images/parrot_flap.png" },
+        { "type": "png", "name": "IMG_ICON_ASK",      "file": "images/action_ask.png" },
+        { "type": "png", "name": "IMG_ICON_TALK",     "file": "images/action_talk.png" },
+        { "type": "png", "name": "IMG_ICON_PHRASES",  "file": "images/action_phrases.png" }
       ]
     }
   }
