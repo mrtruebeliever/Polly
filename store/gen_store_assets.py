@@ -10,6 +10,7 @@ over a jungle-green gradient.
 Run:  .art-venv/bin/python store/gen_store_assets.py
 """
 import os
+import random
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -100,11 +101,54 @@ def screenshot(name, pose, label, bubble_text=None, bubble_color=BLACK):
     print("screenshot:", name)
 
 
+# --- "snelle zinnen" quick-phrases menu --------------------------------------
+# Mirrors phrase_menu_window.c: a bare MenuLayer (menu_cell_basic_draw, no
+# header), CONFIG_PRESET_SLOTS=4 rows, default 44px cell height, first row
+# highlighted as if just opened.
+MENU_CELL_H = 44
+MENU_HIGHLIGHT_BG = (0, 85, 170)  # Pebble "Cobalt" highlight blue
+
+
+def screenshot_menu(name, items, selected=0):
+    img = Image.new("RGB", (W, H), WHITE)
+    d = ImageDraw.Draw(img)
+    f = ImageFont.truetype(FONT_BOLD, 21)  # ~ system Gothic 24 Bold
+    sep = (210, 210, 210)
+    y = 0
+    for i, text in enumerate(items):
+        is_sel = (i == selected)
+        bg, fg = (MENU_HIGHLIGHT_BG, WHITE) if is_sel else (WHITE, BLACK)
+        d.rectangle([0, y, W, y + MENU_CELL_H], fill=bg)
+        lines = wrap(d, text, f, W - 16)
+        line_h = sum(f.getmetrics())
+        ty = y + (MENU_CELL_H - line_h * len(lines)) // 2
+        for ln in lines:
+            d.text((8, ty), ln, font=f, fill=fg)
+            ty += line_h
+        y += MENU_CELL_H
+        if not is_sel:
+            d.line([0, y, W, y], fill=sep, width=1)
+    img.save(os.path.join(OUT, name + ".png"))
+    img.resize((W * 3, H * 3), Image.NEAREST).save(os.path.join(OUT, name + "@3x.png"))
+    print("screenshot:", name)
+
+
 # --- screenshots -------------------------------------------------------------
-DEMO = "Hello! How are you today?"
+DEMO_SENTENCES = [
+    "Hello! How are you today?",
+    "Polly wants a cracker!",
+    "Don't forget your umbrella.",
+    "What a lovely day for a walk.",
+    "Time for a coffee break!",
+    "Good morning, sunshine!",
+    "Tell me a joke, please.",
+    "The weather looks great today.",
+]
+DEMO = random.choice(DEMO_SENTENCES)
 screenshot("screenshot_idle", "parrot_idle.png", "Press SELECT to talk to Polly")
 screenshot("screenshot_thinking", "parrot_idle.png", "Thinking...", DEMO)
 screenshot("screenshot_speaking", "parrot_speak_1.png", "Speaking...", DEMO)
+screenshot_menu("screenshot_phrases", random.sample(DEMO_SENTENCES, 4))
 
 
 # --- icons -------------------------------------------------------------------
