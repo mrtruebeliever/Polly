@@ -113,7 +113,11 @@ watch opens a menu of the non-empty ones; pick one and Polly speaks it instantly
 pebble build
 pebble install --emulator emery       # emulator (note: no mic/speaker pairing)
 pebble install --cloudpebble          # real PT2 device via Dev Connect
+python3 tools/release.py              # size-optimized build/Polly-release.pbw for the store
 ```
+
+`tools/release.py` writes a size-optimized `.pbw` for the appstore (minifies the JS bundle and
+drops the source map, roughly halving the download; needs `node`/`npx`).
 
 > Dictation and the Speaker round-trip require a real device + phone — the
 > emulator has no microphone and can't play back the TTS audio.
