@@ -169,7 +169,7 @@ static void on_playback_done(bool success) {
 // --- Inbound: AUDIO_* round trip ----------------------------------------------
 
 static void handle_tts_error(Tuple *t_error) {
-  APP_LOG(APP_LOG_LEVEL_WARNING, "polly: TTS_ERROR=%ld", (long)t_error->value->int32);
+  APP_LOG(APP_LOG_LEVEL_WARNING, "polly: TTS_ERROR=%ld", (long)config_tuple_int(t_error));
   s_audio_expected = false;
   audio_playback_abort();
   parrot_window_show_message("Couldn't speak that");
@@ -184,7 +184,7 @@ static void handle_audio_format(DictionaryIterator *iter) {
   }
   // Streamed playback: begin allocates only a small ring and grants the phone
   // its first window of chunks; the speaker starts once enough has buffered.
-  if (audio_playback_begin((uint32_t)t_total->value->int32, (int)t_format->value->int32,
+  if (audio_playback_begin((uint32_t)config_tuple_int(t_total), (int)config_tuple_int(t_format),
                            send_chunk_request, on_playback_done)) {
     parrot_window_set_state(UI_STATE_SPEAKING);
   } else {
@@ -200,7 +200,7 @@ static void handle_audio_chunk(DictionaryIterator *iter) {
   if (!s_audio_expected || !t_index || !t_chunk) {
     return;
   }
-  audio_playback_append_chunk((uint32_t)t_index->value->int32, t_chunk->value->data,
+  audio_playback_append_chunk((uint32_t)config_tuple_int(t_index), t_chunk->value->data,
                               t_chunk->length);
 }
 

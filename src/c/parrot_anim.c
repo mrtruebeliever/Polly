@@ -152,6 +152,12 @@ static void start_talk_timer(void) {
 // audio_playback.c). velocity=0 means "use the volume passed to
 // speaker_play_notes" rather than a per-note override.
 static void play_chirp(void) {
+  // The chirp is unprompted -- it answers a tap on the parrot, not a request to
+  // speak -- so Quiet Time silences it. The TTS path stays audible: someone who
+  // deliberately dictates a phrase during Quiet Time is asking to hear it.
+  if (quiet_time_is_active()) {
+    return;
+  }
   static const SpeakerNote chirp[] = {
     { .midi_note = 79, .waveform = SpeakerWaveformSine, .duration_ms = 90,  .velocity = 0 },
     { .midi_note = 84, .waveform = SpeakerWaveformSine, .duration_ms = 90,  .velocity = 0 },

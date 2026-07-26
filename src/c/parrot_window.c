@@ -147,8 +147,12 @@ void parrot_window_show_transcript(const char *text) {
   bubble_set_text(text);
 }
 
+// Every failure the app can report comes through here. It used to draw dimmer
+// than an ordinary transcript, so the one moment legibility matters most was
+// the one moment the text faded -- and the state label beside it only says
+// "Hmm...", which carries no information. Red both reads and signals.
 void parrot_window_show_message(const char *text) {
-  text_layer_set_text_color(s_bubble_text, GColorDarkGray);
+  text_layer_set_text_color(s_bubble_text, GColorDarkCandyAppleRed);
   bubble_set_text(text);
 }
 

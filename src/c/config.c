@@ -18,6 +18,23 @@ static int s_speech_volume = DEFAULT_SPEECH_VOLUME;
 // (forwarded from Clay, not secret). Empty slots are skipped by the accessors.
 static char s_presets[CONFIG_PRESET_SLOTS][CONFIG_PRESET_BUF_SIZE];
 
+// Decode an integer tuple by its actual type and width. The real phone app
+// packs integers at their smallest width (a 1 arrives as a 1-byte tuple), so
+// reading value->int32 blindly picks up neighbouring dict bytes; the emulator
+// always sends 4 bytes and never shows the bug. Clay may also send strings.
+int32_t config_tuple_int(const Tuple *t) {
+  switch (t->type) {
+    case TUPLE_CSTRING: return (int32_t)atoi(t->value->cstring);
+    case TUPLE_INT:  if (t->length == 1) return t->value->int8;
+                     if (t->length == 2) return t->value->int16;
+                     return t->value->int32;
+    case TUPLE_UINT: if (t->length == 1) return t->value->uint8;
+                     if (t->length == 2) return t->value->uint16;
+                     return (int32_t)t->value->uint32;
+    default: return 0;
+  }
+}
+
 static int clamp_pct(int v) {
   if (v < 0) { return 0; }
   if (v > 100) { return 100; }
@@ -72,15 +89,15 @@ void config_inbox_received(DictionaryIterator *iter, void *context) {
   // No change-notify hook needed: parrot_anim reads config_*() live on each
   // timer tick, so persisting the new values here is enough for them to apply.
   if ((t = dict_find(iter, MESSAGE_KEY_IDLE_ANIM_ENABLED))) {
-    s_idle_anim_enabled = (t->value->int32 != 0);
+    s_idle_anim_enabled = (config_tuple_int(t) != 0);
     persist_write_bool(PERSIST_IDLE_ANIM_ENABLED, s_idle_anim_enabled);
   }
   if ((t = dict_find(iter, MESSAGE_KEY_IDLE_ANIM_FREQ))) {
-    s_idle_anim_freq = clamp_pct(t->value->int32);
+    s_idle_anim_freq = clamp_pct(config_tuple_int(t));
     persist_write_int(PERSIST_IDLE_ANIM_FREQ, s_idle_anim_freq);
   }
   if ((t = dict_find(iter, MESSAGE_KEY_SPEECH_VOLUME))) {
-    s_speech_volume = clamp_pct(t->value->int32);
+    s_speech_volume = clamp_pct(config_tuple_int(t));
     persist_write_int(PERSIST_SPEECH_VOLUME, s_speech_volume);
   }
 
