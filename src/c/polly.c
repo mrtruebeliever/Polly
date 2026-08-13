@@ -258,6 +258,7 @@ static void outbox_failed(DictionaryIterator *iter, AppMessageResult reason, voi
 // --- App lifecycle --------------------------------------------------------------
 
 static void init(void) {
+  app_touch_navigation_enable(true);   // opt in to system touch nav on the phrase menu
   config_load();
   dictation_flow_init();
   parrot_window_set_select_handler(on_select_pressed);
