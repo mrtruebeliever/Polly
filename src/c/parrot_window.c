@@ -1,4 +1,5 @@
 #include "parrot_window.h"
+#include "touch_nav.h"
 #include "parrot_anim.h"
 
 #define BUBBLE_HEIGHT 64
@@ -317,12 +318,30 @@ static bool point_in_layer_frame(Layer *layer, int16_t x, int16_t y) {
       && y >= frame.origin.y && y < frame.origin.y + frame.size.h;
 }
 
-static void prv_touch_handler(const TouchEvent *event, void *context) {
-  if (event->type != TouchEvent_Touchdown || s_state != UI_STATE_IDLE) {
-    return;
-  }
-  if (point_in_layer_frame(bitmap_layer_get_layer(s_parrot_layer), event->x, event->y)) {
-    parrot_anim_trigger_happy();
+bool parrot_window_is_top(void) {
+  return s_window && window_stack_get_top_window() == s_window;
+}
+
+// Raw touch, forwarded from the app-wide subscription (polly.c). Poking the
+// parrot makes it perk up; everything else on this screen is the action bar.
+void parrot_window_handle_touch(const TouchEvent *event) {
+  GPoint point;
+  switch (touch_nav_feed(NULL, event, &point)) {
+    case TOUCH_NAV_TAP:
+      // Poking the parrot makes it perk up. Decided on liftoff rather than
+      // touchdown so a swipe across the parrot does not also poke it.
+      if (s_state == UI_STATE_IDLE &&
+          point_in_layer_frame(bitmap_layer_get_layer(s_parrot_layer), point.x, point.y)) {
+        parrot_anim_trigger_happy();
+      }
+      break;
+    case TOUCH_NAV_BACK:
+      // Same meaning as the BACK button: from a non-idle state it returns to
+      // idle (aborting any speech), and only from idle does it leave the app.
+      if (s_back_handler) { s_back_handler(); }
+      break;
+    default:
+      break;
   }
 }
 
@@ -407,11 +426,10 @@ static void prv_window_load(Window *window) {
   parrot_anim_init();
   parrot_window_set_state(UI_STATE_IDLE);
 
-  touch_service_subscribe(prv_touch_handler, NULL);
+  window_set_touch_bridge_disabled(window, true);
 }
 
 static void prv_window_unload(Window *window) {
-  touch_service_unsubscribe();
   parrot_anim_deinit();
 
   action_bar_layer_destroy(s_action_bar);

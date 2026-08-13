@@ -257,8 +257,18 @@ static void outbox_failed(DictionaryIterator *iter, AppMessageResult reason, voi
 
 // --- App lifecycle --------------------------------------------------------------
 
+// One app-wide subscription powers the touch sensor; the events go to whichever
+// window is on top. (The system navigation bridge crashes the app on firmware
+// 4.33.1 — see the note in init().)
+static void touch_dispatch(const TouchEvent *event, void *context) {
+  if (phrase_menu_window_is_top())  { phrase_menu_window_handle_touch(event); }
+  else if (parrot_window_is_top())  { parrot_window_handle_touch(event); }
+}
+
 static void init(void) {
-  app_touch_navigation_enable(true);   // opt in to system touch nav on the phrase menu
+  // No app_touch_navigation_enable() here: on firmware 4.33.1 the system touch
+  // bridge faults inside firmware on the first touch and kills the app. Buttons
+  // only until a later firmware fixes it.
   config_load();
   dictation_flow_init();
   parrot_window_set_select_handler(on_select_pressed);
@@ -266,6 +276,7 @@ static void init(void) {
   parrot_window_set_down_handler(on_down_pressed);
   parrot_window_set_back_handler(on_back_pressed);
   parrot_window_push();
+  touch_service_subscribe(touch_dispatch, NULL);
 
   app_message_register_inbox_received(inbox_received);
   app_message_register_inbox_dropped(inbox_dropped);

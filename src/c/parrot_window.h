@@ -64,3 +64,7 @@ void parrot_window_show_transcript(const char *text);
 void parrot_window_show_message(const char *text);
 
 void parrot_window_clear_bubble(void);
+
+// Raw touch, forwarded from the app-wide subscription while this window is on top.
+bool parrot_window_is_top(void);
+void parrot_window_handle_touch(const TouchEvent *event);
