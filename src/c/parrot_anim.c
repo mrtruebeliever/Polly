@@ -147,23 +147,54 @@ static void start_talk_timer(void) {
 
 // --- Touch reaction: brief wiggle + chirp ------------------------------------
 
-// Three quick rising notes -- a synthesized "tweet", not streamed audio, so it
-// plays instantly without round-tripping to the phone (unlike the TTS path in
-// audio_playback.c). velocity=0 means "use the volume passed to
-// speaker_play_notes" rather than a per-note override.
+// A bird's answer, not a doorbell: two samples synthesised by tools/gen_sfx.py
+// (resources/sfx/) -- a whistled tweet and a rough parrot squawk -- played
+// pitch-shifted through speaker_play_tracks() in one of a few patterns picked
+// at random, so repeated taps don't sound identical. Local samples, so it plays
+// instantly without the phone round trip the TTS path (audio_playback.c) needs.
+// A note shorter than the sample cuts it off, which is how the trill is quick.
+#define CHIRP_BASE 72   // the pitch the samples were rendered at
+static SpeakerSample s_tweet  = { NULL, 0, SpeakerPcmFormat_16kHz_8bit, CHIRP_BASE, false };
+static SpeakerSample s_squawk = { NULL, 0, SpeakerPcmFormat_16kHz_8bit, CHIRP_BASE, false };
+
+static const SpeakerNote CHIRP_TWICE[]  = { {72, 0, 130, 0, 0}, {0, 0, 40, 0, 0}, {76, 0, 130, 0, 0} };
+static const SpeakerNote CHIRP_TRILL[]  = { {79, 0, 55, 0, 0}, {79, 0, 55, 0, 0}, {79, 0, 55, 0, 0},
+                                            {81, 0, 110, 0, 0} };
+static const SpeakerNote CHIRP_WHISTLE[] = { {69, 0, 130, 0, 0}, {0, 0, 60, 0, 0}, {77, 0, 130, 0, 0} };
+static const SpeakerNote CHIRP_SQUAWK[] = { {72, 0, 220, 0, 0} };
+
+// Loaded on the first tap and kept: a sound can still be playing from the
+// buffer when the app closes, and the system reclaims the heap after it stops.
+static void load_sample(SpeakerSample *smp, uint32_t resource_id) {
+  if (smp->data) return;
+  ResHandle h = resource_get_handle(resource_id);
+  size_t size = resource_size(h);
+  uint8_t *buf = malloc(size);
+  if (!buf) return;
+  smp->num_bytes = resource_load(h, buf, size);
+  smp->data = buf;
+}
+
 static void play_chirp(void) {
   // The chirp is unprompted -- it answers a tap on the parrot, not a request to
   // speak -- so Quiet Time silences it. The TTS path stays audible: someone who
   // deliberately dictates a phrase during Quiet Time is asking to hear it.
-  if (quiet_time_is_active()) {
+  if (quiet_time_is_active() || speaker_is_muted()) {
     return;
   }
-  static const SpeakerNote chirp[] = {
-    { .midi_note = 79, .waveform = SpeakerWaveformSine, .duration_ms = 90,  .velocity = 0 },
-    { .midi_note = 84, .waveform = SpeakerWaveformSine, .duration_ms = 90,  .velocity = 0 },
-    { .midi_note = 91, .waveform = SpeakerWaveformSine, .duration_ms = 140, .velocity = 0 },
-  };
-  speaker_play_notes(chirp, ARRAY_LENGTH(chirp), (uint8_t)config_speech_volume());
+  load_sample(&s_tweet, RESOURCE_ID_SFX_TWEET);
+  load_sample(&s_squawk, RESOURCE_ID_SFX_SQUAWK);
+
+  // Mostly tweets; now and then the parrot squawks back instead.
+  SpeakerTrack t;
+  switch (rand() % 7) {
+    case 0: case 1: t = (SpeakerTrack){ CHIRP_TWICE,   ARRAY_LENGTH(CHIRP_TWICE),   &s_tweet };  break;
+    case 2: case 3: t = (SpeakerTrack){ CHIRP_TRILL,   ARRAY_LENGTH(CHIRP_TRILL),   &s_tweet };  break;
+    case 4: case 5: t = (SpeakerTrack){ CHIRP_WHISTLE, ARRAY_LENGTH(CHIRP_WHISTLE), &s_tweet };  break;
+    default:        t = (SpeakerTrack){ CHIRP_SQUAWK,  ARRAY_LENGTH(CHIRP_SQUAWK),  &s_squawk }; break;
+  }
+  if (!t.sample->data) return;
+  speaker_play_tracks(&t, 1, (uint8_t)config_speech_volume());
 }
 
 static void stop_happy_timer(void) {

@@ -105,8 +105,23 @@ static void on_ai_dictation_result(DictationResult result, const char *transcrip
   }
 }
 
+// Polly only talks. With the watch's speaker muted (Settings → Sounds &
+// Haptics, or Quiet Time) the firmware would play every phrase into silence
+// after a full dictation and TTS round trip, so say so up front instead.
+static bool speaker_blocked(void) {
+  if (!speaker_is_muted()) {
+    return false;
+  }
+  parrot_window_show_message("Watch speaker is muted");
+  parrot_window_set_state(UI_STATE_ERROR);
+  return true;
+}
+
 static void on_select_pressed(void) {
   if (parrot_window_get_state() != UI_STATE_IDLE) {
+    return;
+  }
+  if (speaker_blocked()) {
     return;
   }
   if (!dictation_flow_is_available()) {
@@ -122,6 +137,9 @@ static void on_up_pressed(void) {
   if (parrot_window_get_state() != UI_STATE_IDLE) {
     return;
   }
+  if (speaker_blocked()) {
+    return;
+  }
   if (!dictation_flow_is_available()) {
     parrot_window_show_message("No mic available");
     parrot_window_set_state(UI_STATE_ERROR);
@@ -133,6 +151,9 @@ static void on_up_pressed(void) {
 
 static void on_down_pressed(void) {
   if (parrot_window_get_state() != UI_STATE_IDLE) {
+    return;
+  }
+  if (speaker_blocked()) {
     return;
   }
   if (config_preset_count() == 0) {
@@ -269,6 +290,7 @@ static void init(void) {
   // No app_touch_navigation_enable() here: on firmware 4.33.1 the system touch
   // bridge faults inside firmware on the first touch and kills the app. Buttons
   // only until a later firmware fixes it.
+  srand(time(NULL));   // the chirp picks a pattern at random (parrot_anim.c)
   config_load();
   dictation_flow_init();
   parrot_window_set_select_handler(on_select_pressed);

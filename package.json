@@ -1,7 +1,7 @@
 {
   "name": "Polly",
   "author": "mrtruebeliever",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "license": "MIT",
   "keywords": ["pebble-app"],
   "private": true,
@@ -48,6 +48,8 @@
     "resources": {
       "media": [
         { "type": "png", "name": "IMG_MENU_ICON",   "file": "images/menu_icon.png", "menuIcon": true },
+        { "type": "raw", "name": "SFX_TWEET",         "file": "sfx/tweet.raw" },
+        { "type": "raw", "name": "SFX_SQUAWK",        "file": "sfx/squawk.raw" },
         { "type": "png", "name": "IMG_JUNGLE_BG",     "file": "images/jungle_bg.png" },
         { "type": "png", "name": "IMG_PARROT_IDLE",   "file": "images/parrot_idle.png" },
         { "type": "png", "name": "IMG_PARROT_BLINK",  "file": "images/parrot_blink.png" },
