@@ -33,7 +33,6 @@ W, H = 140, 168              # logical parrot-frame size (drawing coordinate spa
 # a sprite is ~17KB, so backdrop + 3 sprites is ~96KB, leaving a comfortable
 # ~28KB for layers, AppMessage buffers, Clay settings and the rest.
 PARROT_SCALE = 0.85
-ICON = 25                    # final menu-icon size
 SIZE = (W * SS, H * SS)
 
 # --- Palette (scarlet macaw) --------------------------------------------------
@@ -293,22 +292,6 @@ def make_icon_phrases():
         d.rounded_rectangle(ebox(10, y, 6, 1.1), radius=1 * SS, fill=WHITE)
     return c
 
-def make_menu_icon():
-    isize = (ICON * SS, ICON * SS)
-    c = layer(isize)
-    c.alpha_composite(glossy(isize, lambda d, **kw: d.ellipse(ebox(13, 14, 10, 10), **kw),
-                             RED, RED_LIGHT, outline=RED_DARK, outline_width=SS))
-    d = ImageDraw.Draw(c)
-    d.ellipse(ebox(9, 11, 3, 3), fill=WHITE)
-    d.ellipse(ebox(8, 11, 1.1, 1.1), fill=BLACK)
-    c.alpha_composite(glossy(isize, lambda d, **kw: d.polygon(pts([(18, 13), (24.5, 15), (18, 18)]), **kw),
-                             ORANGE, ORANGE_LT, hl_radius_rel=0.5))
-    c.alpha_composite(glossy(isize, lambda d, **kw: d.polygon(pts([(10, 5), (13, 0.5), (15.5, 6)]), **kw),
-                             YELLOW, YELLOW_LT, hl_radius_rel=0.5))
-    return c
-
-# --- Render & save -----------------------------------------------------------
-
 def save(img, name, scale=1.0):
     out = os.path.join(os.path.dirname(os.path.abspath(__file__)), name)
     small = img.resize((img.width // SS, img.height // SS), Image.LANCZOS)
@@ -324,7 +307,7 @@ if __name__ == '__main__':
     save(make_speak(2), 'parrot_speak_1.png', PARROT_SCALE)
     save(make_speak(9), 'parrot_speak_2.png', PARROT_SCALE)
     save(make_flap(), 'parrot_flap.png', PARROT_SCALE)
-    save(make_menu_icon(), 'menu_icon.png')
+    # menu_icon.png comes from tools/gen_icon.py (pixel art for the grey launcher)
     save(make_icon_talk(), 'action_talk.png')
     save(make_icon_ask(), 'action_ask.png')
     save(make_icon_phrases(), 'action_phrases.png')
